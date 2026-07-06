@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KT Vault – Knowledge Transfer Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 850: '#1e293b' },
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        /* Smooth transitions for dark mode elements */
+        .fade-in { animation: fadeIn 0.2s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+        /* Toast notification styles */
+        .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; padding: 0.75rem 1.25rem; border-radius: 0.5rem; color: white; font-size: 0.875rem; opacity: 0; transition: opacity 0.3s ease; }
+        .toast.show { opacity: 1; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-200 min-h-screen">
+
+    <!-- Header -->
+    <header class="border-b border-slate-700 bg-slate-850 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between flex-wrap gap-3">
+            <h1 class="text-xl font-bold text-emerald-400 tracking-tight">KT Vault</h1>
+            <div class="flex items-center gap-2 flex-wrap">
+                <!-- Search -->
+                <div id="searchBar">
+                    <input type="search" id="searchInput" placeholder="Search snippets…"
+                        class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-500" />
+                </div>
+                <!-- Export -->
+                <a href="/api/export" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors">Export JSON</a>
+                <!-- Import -->
+                <label for="importFile" class="cursor-pointer text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors select-none">Import JSON</label>
+                <input type="file" id="importFile" accept=".json" class="hidden" />
+
+                <!-- Account dropdown -->
+                <div class="relative">
+                    <button type="button" id="accountDropdownToggle"
+                        class="text-xs bg-slate-700 hover:bg-indigo-600 text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                        Accounts
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div id="accountDropdownMenu" class="hidden absolute right-0 top-full mt-1 bg-slate-850 border border-slate-700 rounded-lg shadow-xl z-50 w-80">
+                        <div class="p-3 space-y-3 max-h-[400px] overflow-y-auto">
+                            <!-- Account selector -->
+                            <select id="accountSelector"
+                                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="">— No accounts configured —</option>
+                            </select>
+
+                            <!-- Inline add/edit form -->
+                            <div id="accountForm" class="hidden space-y-2 p-3 bg-slate-800 border border-indigo-500/40 rounded-lg">
+                                <input type="text" id="accountNameInput" placeholder="Account name *"
+                                    class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                <textarea id="accountDescInput" placeholder="Description (optional)" rows="2"
+                                    class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                                <div id="accountFormButtons" class="flex gap-2">
+                                    <button type="button" id="accountSaveBtn"
+                                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium py-1 px-2 rounded transition-colors">Save</button>
+                                    <button type="button" id="accountCancelBtn"
+                                        class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs py-1 px-2 rounded transition-colors">Cancel</button>
+                                </div>
+                            </div>
+
+                            <!-- Action buttons -->
+                            <div class="flex gap-2" id="accountActionButtons">
+                                <button type="button" id="accountAddBtn"
+                                    class="text-xs bg-slate-700 hover:bg-emerald-600 text-slate-300 hover:text-white py-1 px-2 rounded transition-colors flex-1">+ Add Account</button>
+                                <button type="button" id="accountEditBtn" disabled
+                                    class="text-xs bg-slate-700 hover:bg-indigo-600 text-slate-300 hover:text-white py-1 px-2 rounded transition-colors flex-1 disabled:opacity-40">Edit</button>
+                                <button type="button" id="accountDeleteBtn" disabled
+                                    class="text-xs bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white py-1 px-2 rounded transition-colors flex-1 disabled:opacity-40">Delete</button>
+                            </div>
+
+                            <p id="accountHint" class="text-[10px] text-slate-500 mt-2">
+                                Create an account first to tag snippets with a customer.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Tabbed interface -->
+        <div id="appLayout" class="flex flex-col min-h-[70vh]">
+
+            <!-- Tab bar -->
+            <div class="border-b border-slate-700 bg-slate-850 sticky top-0 z-40">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex overflow-x-auto pb-2 -mb-px scrollbar-hide">
+                        <button data-tab="snippet" class="tab-btn active px-4 py-3 text-sm font-medium border-b-2 border-emerald-500 text-emerald-400 whitespace-nowrap">
+                            New Snippet
+                        </button>
+                        <button data-tab="saved" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-300 whitespace-nowrap">
+                            Saved Snippets
+                        </button>
+                        <button data-tab="analysis" class="tab-btn hidden px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-300 whitespace-nowrap">
+                            Content Analysis <span class="analysis-count hidden ml-1 px-1.5 py-0.5 text-xs bg-red-500/20 text-red-400 rounded-full">0</span>
+                        </button>
+                        <button data-tab="enhancement" class="tab-btn hidden px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-300 whitespace-nowrap">
+                            Enhancement Suggestions <span class="enhancement-count hidden ml-1 px-1.5 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded-full">0</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab content containers -->
+            <div class="flex-1 mt-6">
+                <!-- Tab 1: New Snippet -->
+                <section id="tab-snippet" class="tab-content">
+                    <div class="bg-slate-850 border border-slate-700 rounded-xl p-5 space-y-6">
+                        <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            New Snippet
+                        </h2>
+
+                        <form id="snippetForm" class="space-y-3">
+                            <!-- Account selector (required) -->
+                            <div>
+                                <label for="formAccountSelect" class="block text-xs font-medium text-slate-400 mb-1">Account *</label>
+                                <select id="formAccountSelect" name="account_id" required disabled
+                                    class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    <option value="">Create an account first…</option>
+                                </select>
+                            </div>
+
+                            <!-- Title -->
+                            <div>
+                                <label for="titleInput" class="block text-xs font-medium text-slate-400 mb-1">Title *</label>
+                            <input type="text" id="titleInput" name="title" required placeholder="e.g. How to reset Active Directory password"
+                                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-500" />
+                            </div>
+
+                            <!-- Category & Tags row -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label for="categoryInput" class="block text-xs font-medium text-slate-400 mb-1">Category</label>
+                            <input type="text" id="categoryInput" name="category" placeholder="General" value="General"
+                                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-500" />
+                                </div>
+                                <div>
+                                    <label for="tagsInput" class="block text-xs font-medium text-slate-400 mb-1">Tags</label>
+                                    <input type="text" id="tagsInput" name="tags" placeholder="active-directory, password"
+                                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-500" />
+                                </div>
+                            </div>
+
+                            <!-- Body -->
+                            <div>
+                                <label for="bodyInput" class="block text-xs font-medium text-slate-400 mb-1">Body / Code *</label>
+                            <textarea id="bodyInput" name="body" required rows="8" placeholder="Paste the procedure, error message, or code snippet here…"
+                                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-500 resize-y"></textarea>
+                            </div>
+
+                            <!-- Review / Save actions -->
+                            <div class="flex gap-2">
+                                <button type="button" id="reviewBtn"
+                                    class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                    Review &amp; Enhance
+                                </button>
+                                <div class="flex gap-2">
+                                    <button type="button" id="cancelEditBtn"
+                                        class="hidden bg-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2 px-4 rounded-lg transition-colors">
+                                        Cancel
+                                    </button>
+                                    <button type="submit" id="saveBtn"
+                                        class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                        Save Snippet
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Stats -->
+                            <div class="mt-5 pt-4 border-t border-slate-700 text-xs text-slate-500">
+                                <span id="snippetCount">0</span> snippet(s) in vault.
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Tab 2: Saved Snippets -->
+                <section id="tab-saved" class="tab-content hidden">
+                    <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                        Saved Snippets
+                    </h2>
+
+                    <!-- Empty state -->
+                    <div id="emptyState" class="hidden flex-col items-center justify-center py-16 text-slate-500">
+                        <svg class="w-16 h-16 mb-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        <p class="text-sm">No snippets yet. Create your first one!</p>
+                    </div>
+
+                    <!-- Cards container -->
+                    <div id="snippetsList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </section>
+
+                <!-- Tab 3: Content Analysis -->
+                <section id="tab-analysis" class="tab-content hidden">
+                    <div class="bg-slate-850 border border-slate-700 rounded-xl p-5">
+                        <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Content Analysis <span id="analysisCountBadge" class="ml-2 px-2 py-0.5 text-xs bg-red-500/20 text-red-400 rounded-full">0</span>
+                        </h2>
+
+                        <div id="contentGapsContainer" class="space-y-3 max-h-[70vh] overflow-y-auto">
+                            <div class="text-center py-12 text-slate-500">
+                                <p>Run AI review on a snippet first to see content analysis.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tab 4: Enhancement Suggestions -->
+                <section id="tab-enhancement" class="tab-content hidden">
+                    <div class="bg-slate-850 border border-slate-700 rounded-xl p-5">
+                        <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            Enhancement Suggestions <span id="enhancementCountBadge" class="ml-2 px-2 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded-full">0</span>
+                        </h2>
+
+                        <div id="enhancementContainer" class="space-y-3 max-h-[70vh] overflow-y-auto">
+                            <div class="text-center py-12 text-slate-500">
+                                <p>Run AI review on a snippet first to see enhancement suggestions.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast notification container -->
+    <div id="toastContainer"></div>
+
+<!-- ==================== JavaScript ==================== -->
+    <script>
+    (() => {
+        'use strict';
+
+        // -----------------------------------------------------------------------
+        // DOM references
+        // -----------------------------------------------------------------------
+        const $ = (sel) => document.querySelector(sel);
+        const form = $('#snippetForm');
+        const titleInput = $('#titleInput');
+        const categoryInput = $('#categoryInput');
+        const bodyInput = $('#bodyInput');
+        const tagsInput = $('#tagsInput');
+        const reviewBtn = $('#reviewBtn');
+        const saveBtn = $('#saveBtn');
+        const cancelEditBtn = $('#cancelEditBtn');
+        const snippetTabBtn = document.querySelector('[data-tab="snippet"]');
+
+        // Cancel edit – reset form, review results, and exit edit mode
+        cancelEditBtn.addEventListener('click', () => {
+            if (editingSnippetId) {
+                form.reset();
+                categoryInput.value = 'General';
+
+                // Clear review results and hide Analysis/Enhancement tabs
+                reviewResults = {
+                    issues: [],
+                    contentGaps: [],
+                    enhancementSuggestions: [],
+                    correctedBody: '',
+                    truncated: ''
+                };
+                updateTabVisibility();
+
+                editingSnippetId = null;
+                saveBtn.textContent = 'Save Snippet';
+                cancelEditBtn.classList.add('hidden');
+                snippetTabBtn.textContent = 'New Snippet';
+                showToast('Edit cancelled.', 'info');
+            }
+        });
+
+        const searchInput = $('#searchInput');
+        const snippetsList = $('#snippetsList');
+        const emptyState = $('#emptyState');
+        const snippetCount = $('#snippetCount');
+        const importFile = $('#importFile');
+
+        // Account DOM refs
+        const accountSelector = $('#accountSelector');
+        const formAccountSelect = $('#formAccountSelect');
+        const accountAddBtn = $('#accountAddBtn');
+        const accountEditBtn = $('#accountEditBtn');
+        const accountDeleteBtn = $('#accountDeleteBtn');
+        const accountForm = $('#accountForm');
+        const accountNameInput = $('#accountNameInput');
+        const accountDescInput = $('#accountDescInput');
+        const accountSaveBtn = $('#accountSaveBtn');
+        const accountCancelBtn = $('#accountCancelBtn');
+        const accountHint = $('#accountHint');
+
+        // Tab content containers
+        const tabSnippet = $('#tab-snippet');
+        const tabSaved = $('#tab-saved');
+        const tabAnalysis = $('#tab-analysis');
+        const tabEnhancement = $('#tab-enhancement');
+
+        // Tab buttons
+        const tabBtns = document.querySelectorAll('.tab-btn');
+
+        // Account dropdown elements
+        const accountDropdownToggle = $('#accountDropdownToggle');
+        const accountDropdownMenu = $('#accountDropdownMenu');
+
+        let allSnippets = [];   // full list from server
+        let filteredSnippets = []; // currently displayed after search filter
+        let isReviewing = false;
+        let accounts = [];      // [{id, name, description}]
+        let editingAccountId = null;  // null = add mode, int = edit mode
+        let activeTab = 'snippet';    // Current active tab
+        let editingSnippetId = null;  // null = create mode, int = update mode
+
+        // AI Review results storage
+        let reviewResults = {
+            issues: [],
+            contentGaps: [],
+            enhancementSuggestions: [],
+            correctedBody: '',
+            truncated: ''
+        };
+
+        // -----------------------------------------------------------------------
+        // Toast helper
+        // -----------------------------------------------------------------------
+        function showToast(message, type = 'success') {
+            const colors = { success: 'bg-emerald-600', error: 'bg-red-600', info: 'bg-indigo-600' };
+            const toast = document.createElement('div');
+            toast.className = `toast ${colors[type] || colors.info}`;
+            toast.textContent = message;
+            $('#toastContainer').appendChild(toast);
+            requestAnimationFrame(() => toast.classList.add('show'));
+            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 2500);
+        }
+
+        // -----------------------------------------------------------------------
+        // Tab switching logic
+        // -----------------------------------------------------------------------
+        function switchTab(tabName) {
+            // Update active tab state
+            activeTab = tabName;
+
+            // Update tab button styles
+            tabBtns.forEach(btn => {
+                if (btn.dataset.tab === tabName) {
+                    btn.classList.add('active');
+                    btn.classList.remove('border-transparent', 'text-slate-400');
+                    btn.classList.add('border-emerald-500', 'text-emerald-400');
+                } else {
+                    btn.classList.remove('active');
+                    btn.classList.add('border-transparent', 'text-slate-400');
+                    btn.classList.remove('border-emerald-500', 'text-emerald-400');
+                }
+            });
+
+            // Show/hide tab content
+            tabSnippet.classList.toggle('hidden', tabName !== 'snippet');
+            tabSaved.classList.toggle('hidden', tabName !== 'saved');
+            tabAnalysis.classList.toggle('hidden', tabName !== 'analysis');
+            tabEnhancement.classList.toggle('hidden', tabName !== 'enhancement');
+
+            // Close account dropdown when switching tabs
+            if (accountDropdownMenu) {
+                accountDropdownMenu.classList.add('hidden');
+            }
+
+            const q = searchInput.value.trim();
+            if (tabName === 'saved' || tabName === 'snippet') {
+                fetchSnippets(q);
+            }
+
+            // Show/hide search bar — only relevant on Saved Snippets tab
+            $('#searchBar').classList.toggle('hidden', tabName !== 'saved');
+
+            // When switching to Content Analysis or Enhancement Suggestions tabs,
+            // populate with stored review results
+            if (tabName === 'analysis' || tabName === 'enhancement') {
+                renderReviewTabs();
+            }
+        }
+
+        // Handle tab button clicks
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                switchTab(btn.dataset.tab);
+            });
+        });
+
+        // -----------------------------------------------------------------------
+        // Account dropdown toggle
+        // -----------------------------------------------------------------------
+        accountDropdownToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const wasHidden = accountDropdownMenu.classList.contains('hidden');
+            if (wasHidden) {
+                accountDropdownMenu.classList.remove('hidden');
+            } else {
+                // Toggle off only if clicking the same button again
+                accountDropdownMenu.classList.add('hidden');
+            }
+        });
+
+        // Close dropdown when clicking outside the dropdown or toggle button
+        document.addEventListener('click', (e) => {
+            if (!accountDropdownMenu.contains(e.target) && !accountDropdownToggle.contains(e.target)) {
+                accountDropdownMenu.classList.add('hidden');
+            }
+        });
+
+        // Prevent clicks inside dropdown menu from closing it via document listener
+        accountDropdownMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        // -----------------------------------------------------------------------
+        // Fetch snippets from server (filtered by current account selection)
+        // -----------------------------------------------------------------------
+        async function fetchSnippets(query = '') {
+            try {
+                const params = new URLSearchParams();
+                if (query) params.set('q', query);
+                const accountId = accountSelector.value;
+                if (accountId) params.set('account_id', accountId);
+                const qs = params.toString();
+                const url = qs ? `/api/snippets?${qs}` : '/api/snippets';
+                const res = await fetch(url);
+
+                // Validate response is actual JSON, not an HTML error page
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status} (expected JSON, got status)`);
+                }
+                const text = await res.text();
+                if (!text.trim()) return;
+                allSnippets = JSON.parse(text);
+                applySearchFilter();
+            } catch (err) {
+                console.error('Failed to load snippets:', err);
+                showToast(`Failed to load snippets: ${err.message}`, 'error');
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // Fetch accounts from server and populate dropdowns
+        // -----------------------------------------------------------------------
+        async function loadAccounts() {
+            try {
+                const res = await fetch('/api/accounts');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                accounts = await res.json();
+
+                // Rebuild both dropdown options
+                const buildOptions = (sel, includeNone) => {
+                    sel.innerHTML = '';
+                    if (includeNone) {
+                        const opt = document.createElement('option');
+                        opt.value = '';
+                        opt.textContent = '— All Accounts —';
+                        sel.appendChild(opt);
+                    }
+                    accounts.forEach(a => {
+                        const opt = document.createElement('option');
+                        opt.value = String(a.id);
+                        opt.textContent = a.name;
+                        sel.appendChild(opt);
+                    });
+                };
+
+                buildOptions(accountSelector, true);   // manager dropdown (with "All")
+                buildOptions(formAccountSelect, false); // form dropdown (required, no "all")
+
+                // Enable/disable form selector based on whether accounts exist
+                const hasAccounts = accounts.length > 0;
+                formAccountSelect.disabled = !hasAccounts;
+                saveBtn.disabled = !hasAccounts;
+                accountEditBtn.disabled = !hasAccounts || accountSelector.value === '';
+                accountDeleteBtn.disabled = !hasAccounts || accountSelector.value === '';
+                accountHint.style.display = hasAccounts ? 'none' : 'block';
+
+                // Update tab visibility based on accounts
+                updateTabVisibility();
+
+            } catch (err) {
+                console.error('Failed to load accounts:', err);
+                showToast('Failed to load accounts.', 'error');
+            }
+        }
+
+        // Account selector change → re-fetch snippets for that account and enable/disable buttons
+        accountSelector.addEventListener('change', () => {
+            formAccountSelect.value = accountSelector.value;  // sync form dropdown
+
+            // Update button states based on selection
+            const hasAccounts = accounts.length > 0;
+            const hasSelectedAccount = accountSelector.value !== '';
+            accountEditBtn.disabled = !hasAccounts || !hasSelectedAccount;
+            accountDeleteBtn.disabled = !hasAccounts || !hasSelectedAccount;
+
+            applySearchFilter();
+        });
+
+        // -----------------------------------------------------------------------
+        // Client-side search filter (real-time) – checks title, category, body, tags, account_name
+        // -----------------------------------------------------------------------
+        function applySearchFilter() {
+            const q = searchInput.value.trim().toLowerCase();
+            if (!q) {
+                filteredSnippets = allSnippets;
+            } else {
+                filteredSnippets = allSnippets.filter(s =>
+                    s.title.toLowerCase().includes(q) ||
+                    s.category.toLowerCase().includes(q) ||
+                    s.body.toLowerCase().includes(q) ||
+                    (s.tags && s.tags.toLowerCase().includes(q)) ||
+                    (s.account_name && s.account_name.toLowerCase().includes(q))
+                );
+            }
+            renderSnippets();
+        }
+
+        searchInput.addEventListener('input', applySearchFilter);
+
+        // Debounced fetch – refetches from server after typing pauses (avoids per-keystroke requests)
+        let searchFetchTimer = null;
+        const SEARCH_DEBOUNCE_MS = 300;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchFetchTimer);
+            searchFetchTimer = setTimeout(() => {
+                if (['snippet', 'saved'].includes(activeTab)) {
+                    fetchSnippets(searchInput.value.trim());
+                }
+            }, SEARCH_DEBOUNCE_MS);
+        });
+
+        // -----------------------------------------------------------------------
+        // Render snippet cards
+        // -----------------------------------------------------------------------
+        function renderSnippets() {
+            snippetsList.innerHTML = '';
+            const total = filteredSnippets.length;
+            snippetCount.textContent = total;
+
+            if (total === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+                return;
+            }
+            emptyState.classList.add('hidden');
+            emptyState.classList.remove('flex');
+
+            filteredSnippets.forEach(snippet => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-850 border border-slate-700 rounded-xl p-4 hover:border-emerald-500/50 transition-colors fade-in group';
+                card.setAttribute('data-snippet-id', snippet.id);
+                const timeAgo = formatDate(snippet.timestamp);
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <h3 class="font-semibold text-white text-sm leading-snug flex-1 min-w-0 truncate">${escapeHtml(snippet.title)}</h3>
+                        <button type="button" data-action="delete-${snippet.id}" title="Delete snippet"
+                            class="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500/20 hover:bg-red-600 text-red-400 hover:text-white p-1.5 rounded-md shrink-0">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 mb-3 text-xs flex-wrap">
+                        <span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full">${escapeHtml(snippet.account_name || 'Unknown')}</span>
+                        <span class="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">${escapeHtml(snippet.category)}</span>
+                        ${snippet.tags ? `<span class="text-slate-500">${formatTags(snippet.tags)}</span>` : ''}
+                        <span class="text-slate-600 ml-auto">${timeAgo}</span>
+                    </div>
+                    <pre class="bg-slate-800 border border-slate-700 rounded-lg p-3 text-xs font-mono text-slate-300 whitespace-pre-wrap break-all max-h-48 overflow-y-auto mb-3">${escapeHtml(snippet.body)}</pre>
+                    <div class="flex items-center gap-2">
+                        <button type="button" data-action="edit-${snippet.id}" title="Edit snippet"
+                            class="text-xs bg-slate-700 hover:bg-indigo-600 text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            Edit
+                        </button>
+                        <button type="button" data-action="copy-${snippet.id}" title="Copy body to clipboard"
+                            class="text-xs bg-slate-700 hover:bg-emerald-600 text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                            Copy
+                        </button>
+                    </div>
+                `;
+                snippetsList.appendChild(card);
+            });
+
+            // Wire up action buttons using data-action attributes (reliable, no querySelector pitfalls)
+            document.querySelectorAll('#snippetsList [data-action]').forEach(btn => {
+                const match = btn.getAttribute('data-action').match(/^(edit|copy|delete)-(\d+)$/);
+                if (!match) return;
+                const [, action, idStr] = match;
+                const id = parseInt(idStr);
+
+                if (action === 'edit') {
+                    btn.addEventListener('click', () => editSnippet(id));
+                } else if (action === 'copy') {
+                    btn.addEventListener('click', () => copySnippet(id));
+                } else if (action === 'delete') {
+                    btn.addEventListener('click', () => deleteSnippet(id));
+                }
+            });
+
+            // Store body text keyed by ID for copy/delete (avoid re-fetching)
+            window._snippetBodies = {};
+            allSnippets.forEach(s => { window._snippetBodies[s.id] = s.body; });
+        }
+
+        // -----------------------------------------------------------------------
+        // Copy snippet body to clipboard
+        // -----------------------------------------------------------------------
+        async function copySnippet(id) {
+            const body = window._snippetBodies?.[id];
+            if (!body) return;
+            try {
+                await navigator.clipboard.writeText(body);
+                showToast('Copied to clipboard!', 'success');
+            } catch (err) {
+                // Fallback for older browsers
+                const ta = document.createElement('textarea');
+                ta.value = body; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('Copied to clipboard!', 'success');
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // Delete snippet (global scope for inline onclick)
+        // -----------------------------------------------------------------------
+        window.deleteSnippet = async function(id) {
+            if (!confirm('Delete this snippet permanently?')) return;
+            try {
+                const res = await fetch(`/api/snippets/${id}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                showToast('Snippet deleted.', 'info');
+                fetchSnippets(searchInput.value.trim());
+            } catch (err) {
+                console.error('Delete failed:', err);
+                showToast('Failed to delete snippet.', 'error');
+            }
+        };
+
+        // -----------------------------------------------------------------------
+        // Edit snippet – load data into form for editing
+        // -----------------------------------------------------------------------
+        window.editSnippet = async function(id) {
+            const snippet = allSnippets.find(s => s.id === id);
+            if (!snippet) return;
+
+            // Populate form fields
+            titleInput.value = snippet.title;
+            categoryInput.value = snippet.category;
+            bodyInput.value = snippet.body;
+            tagsInput.value = snippet.tags || '';
+            
+            // Set account selector to match the snippet's account
+            accountSelector.value = String(snippet.account_id);
+            formAccountSelect.value = String(snippet.account_id);
+
+            // Mark form as in edit mode
+            editingSnippetId = id;
+            saveBtn.textContent = 'Update Snippet';
+            snippetTabBtn.textContent = 'Update Snippet';
+            cancelEditBtn.classList.remove('hidden');
+            
+            // Switch to New Snippet tab with the form populated
+            switchTab('snippet');
+            
+            showToast(`Editing: ${snippet.title}`, 'info');
+        };
+
+
+        // -----------------------------------------------------------------------
+        // Review & Enhance – AJAX call to /review (AI-powered)
+        // -----------------------------------------------------------------------
+        reviewBtn.addEventListener('click', async () => {
+            const text = bodyInput.value.trim();
+            if (!text) { showToast('Paste some text first.', 'info'); return; }
+
+            isReviewing = true;
+            reviewBtn.disabled = true;
+            reviewBtn.textContent = 'Analyzing…';
+
+            try {
+                const res = await fetch('/review', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ body: text }),
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${res.status}`);
+                }
+
+                const data = await res.json();
+                // Store review results
+                reviewResults = {
+                    issues: data.issues || [],
+                    contentGaps: data.content_gaps || [],
+                    enhancementSuggestions: data.enhancement_suggestions || [],
+                    correctedBody: data.corrected_body || '',
+                    truncated: data.truncated === true ? '\n\n[... text was longer than 4096 chars — review covers the first portion only]' : ''
+                };
+
+                // Switch to Content Analysis tab
+                switchTab('analysis');
+
+                // Update tab visibility
+                updateTabVisibility();
+
+                showToast('Review complete!', 'success');
+
+            } catch (err) {
+                showToast(`Review failed: ${err.message}`, 'error');
+            } finally {
+                isReviewing = false;
+                reviewBtn.disabled = false;
+                reviewBtn.textContent = 'Review & Enhance';
+            }
+        });
+
+        // -----------------------------------------------------------------------
+        // Render review results in tabs
+        // -----------------------------------------------------------------------
+        function renderReviewTabs() {
+            const contentGapsContainer = $('#contentGapsContainer');
+            const enhancementContainer = $('#enhancementContainer');
+            const analysisCountBadge = $('#analysisCountBadge');
+            const enhancementCountBadge = $('#enhancementCountBadge');
+
+            // Render Content Analysis tab
+            contentGapsContainer.innerHTML = '';
+            if (reviewResults.contentGaps.length > 0) {
+                analysisCountBadge.textContent = reviewResults.contentGaps.length;
+                analysisCountBadge.classList.remove('hidden');
+
+                const severityColors = {
+                    high: 'border-l-red-500',
+                    medium: 'border-l-amber-500',
+                    low: 'border-l-blue-400',
+                };
+                const severityBadgeColors = {
+                    high: 'bg-red-500/20 text-red-300 border-red-500/30',
+                    medium: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+                    low: 'bg-blue-500/20 text-blue-300 border-blue-400/30',
+                };
+
+                reviewResults.contentGaps.forEach(gap => {
+                    const div = document.createElement('div');
+                    const badgeClass = severityBadgeColors[gap.severity] || severityBadgeColors.low;
+                    div.className = `bg-slate-800 border ${severityColors[gap.severity]} rounded-lg p-3`;
+                    div.innerHTML = `
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                            <span class="inline-block text-[10px] font-medium px-1.5 py-0.5 rounded border ${badgeClass}">${escapeHtml(gap.type)}</span>
+                            <span class="text-[11px] text-slate-500">${gap.severity}</span>
+                        </div>
+                        <p class="text-slate-300 text-xs mt-1">${escapeHtml(gap.description)}</p>
+                        ${gap.location ? `<p class="text-[11px] text-slate-500 italic mt-1">Location: ${escapeHtml(gap.location)}</p>` : ''}
+                    `;
+                    contentGapsContainer.appendChild(div);
+                });
+            } else {
+                analysisCountBadge.classList.add('hidden');
+                contentGapsContainer.innerHTML = `
+                    <div class="text-center py-12 text-slate-500">
+                        <p>No content gaps found.</p>
+                    </div>
+                `;
+            }
+
+            // Render Enhancement Suggestions tab
+            enhancementContainer.innerHTML = '';
+            if (reviewResults.enhancementSuggestions.length > 0) {
+                enhancementCountBadge.textContent = reviewResults.enhancementSuggestions.length;
+                enhancementCountBadge.classList.remove('hidden');
+
+                reviewResults.enhancementSuggestions.forEach((sug, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-slate-800 border border-blue-500/20 rounded-lg p-3';
+
+                    const typeLabel = sug.type ? `<span class="inline-block text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 mb-2">${escapeHtml(sug.type)}</span>` : '';
+
+                    div.innerHTML = `
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex-1 min-w-0">
+                                ${typeLabel}
+                                <p class="text-slate-300 text-sm">${escapeHtml(sug.suggestion)}</p>
+                                ${sug.context ? `<p class="text-[11px] text-slate-400 mt-1">Context: ${escapeHtml(sug.context)}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    enhancementContainer.appendChild(div);
+
+                    // Apply suggestion button
+                    const applyBtn = document.createElement('button');
+                    applyBtn.type = 'button';
+                    applyBtn.className = 'mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-1.5 px-3 rounded-lg transition-colors';
+                    applyBtn.textContent = `Apply suggestion ${i + 1}`;
+                    applyBtn.onclick = () => {
+                        bodyInput.value += '\n\n' + sug.suggestion;
+                        showToast(`Applied: ${sug.suggestion.slice(0, 40)}…`, 'success');
+                    };
+                    enhancementContainer.appendChild(applyBtn);
+                });
+            } else {
+                enhancementCountBadge.classList.add('hidden');
+                enhancementContainer.innerHTML = `
+                    <div class="text-center py-12 text-slate-500">
+                        <p>No enhancement suggestions found.</p>
+                    </div>
+                `;
+            }
+
+            // Show/hide tabs based on content
+            updateTabVisibility();
+        }
+
+        // -----------------------------------------------------------------------
+        // Update tab visibility based on content
+        // -----------------------------------------------------------------------
+        function updateTabVisibility() {
+            const hasContentGaps = reviewResults.contentGaps.length > 0;
+            const hasEnhancementSuggestions = reviewResults.enhancementSuggestions.length > 0;
+
+            const analysisTab = $('.tab-btn[data-tab="analysis"]');
+            const enhancementTab = $('.tab-btn[data-tab="enhancement"]');
+
+            if (hasContentGaps) {
+                analysisTab.classList.remove('hidden');
+            } else {
+                analysisTab.classList.add('hidden');
+            }
+
+            if (hasEnhancementSuggestions) {
+                enhancementTab.classList.remove('hidden');
+            } else {
+                enhancementTab.classList.add('hidden');
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // Save snippet – POST form data (create or update)
+        // -----------------------------------------------------------------------
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(form);
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving…';
+
+            try {
+                let res;
+                if (editingSnippetId) {
+                    // Update existing snippet
+                    const payload = Object.fromEntries(formData);
+                    res = await fetch(`/api/snippets/${editingSnippetId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                } else {
+                    // Create new snippet
+                    res = await fetch('/api/snippets', { method: 'POST', body: formData });
+                }
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${res.status}`);
+                }
+
+                showToast(editingSnippetId ? 'Snippet updated!' : 'Snippet saved!', 'success');
+                
+                // Reset form and edit state
+                form.reset();
+                categoryInput.value = 'General';
+                editingSnippetId = null;
+                saveBtn.textContent = 'Save Snippet';
+                cancelEditBtn.classList.add('hidden');
+                snippetTabBtn.textContent = 'New Snippet';
+                
+                // Reset review results
+                reviewResults = {
+                    issues: [],
+                    contentGaps: [],
+                    enhancementSuggestions: [],
+                    correctedBody: '',
+                    truncated: ''
+                };
+                updateTabVisibility();
+
+                // Refresh the list
+                fetchSnippets(searchInput.value.trim());
+
+                // Switch to Saved Snippets tab
+                switchTab('saved');
+
+            } catch (err) {
+                console.error('Save failed:', err);
+                showToast(`Failed to save: ${err.message}`, 'error');
+            } finally {
+                saveBtn.disabled = false;
+                if (!editingSnippetId && saveBtn.textContent !== 'Saving…') {
+                    saveBtn.textContent = 'Save Snippet';
+                } else if (editingSnippetId) {
+                    saveBtn.textContent = 'Update Snippet';
+                }
+            }
+        });
+
+        // -----------------------------------------------------------------------
+        // Account CRUD handlers
+        // -----------------------------------------------------------------------
+        function openAccountForm(account = null) {
+            editingAccountId = account ? account.id : null;
+            accountNameInput.value = account ? account.name : '';
+            accountDescInput.value = account ? (account.description || '') : '';
+            accountSaveBtn.textContent = account ? 'Update' : 'Create';
+            accountForm.classList.remove('hidden');
+            accountNameInput.focus();
+
+            // Disable manager buttons while editing
+            accountAddBtn.disabled = true;
+        }
+
+        function closeAccountForm() {
+            editingAccountId = null;
+            accountForm.classList.add('hidden');
+            accountAddBtn.disabled = false;
+            accountNameInput.value = '';
+            accountDescInput.value = '';
+        }
+
+        async function saveAccount() {
+            const name = accountNameInput.value.trim();
+            const description = accountDescInput.value.trim();
+            if (!name) { showToast('Account name is required.', 'error'); return; }
+
+            try {
+                let res;
+                if (editingAccountId) {
+                    res = await fetch(`/api/accounts/${editingAccountId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, description }),
+                    });
+                } else {
+                    const fd = new FormData();
+                    fd.append('name', name);
+                    fd.append('description', description);
+                    res = await fetch('/api/accounts', { method: 'POST', body: fd });
+                }
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${res.status}`);
+                }
+
+                showToast(editingAccountId ? 'Account updated.' : 'Account created.', 'success');
+                closeAccountForm();
+                loadAccounts();
+            } catch (err) {
+                console.error('Account save failed:', err);
+                showToast(`Failed: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteAccount() {
+            const id = accountSelector.value;
+            if (!id) return;
+            const name = accounts.find(a => String(a.id) === id)?.name || `#${id}`;
+            if (!confirm(`Delete account "${name}"? This cannot be undone.`)) return;
+
+            try {
+                const res = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${res.status}`);
+                }
+
+                showToast(`Account "${name}" deleted.`, 'info');
+                // Reset selector to "All"
+                accountSelector.value = '';
+                formAccountSelect.value = '';
+                loadAccounts();
+            } catch (err) {
+                console.error('Account delete failed:', err);
+                showToast(`Failed: ${err.message}`, 'error');
+            }
+        }
+
+        // Wire account buttons
+        accountAddBtn.addEventListener('click', () => openAccountForm());
+        accountEditBtn.addEventListener('click', () => {
+            const sel = accounts.find(a => String(a.id) === accountSelector.value);
+            if (sel) openAccountForm(sel);
+        });
+        accountDeleteBtn.addEventListener('click', deleteAccount);
+        accountSaveBtn.addEventListener('click', saveAccount);
+        accountCancelBtn.addEventListener('click', closeAccountForm);
+
+        // Ctrl/Cmd+Enter in account form submits the form
+        accountNameInput.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveAccount();
+        });
+
+        // -----------------------------------------------------------------------
+        // Import JSON file
+        // -----------------------------------------------------------------------
+        importFile.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/import', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${res.status}`);
+                }
+
+                const data = await res.json();
+                showToast(data.message, 'success');
+                fetchSnippets(searchInput.value.trim());
+            } catch (err) {
+                console.error('Import failed:', err);
+                showToast(`Import failed: ${err.message}`, 'error');
+            } finally {
+                importFile.value = ''; // reset file input
+            }
+        });
+
+        // -----------------------------------------------------------------------
+        // Utility helpers
+        // -----------------------------------------------------------------------
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function formatDate(isoString) {
+            if (!isoString) return '';
+            try {
+                const d = new Date(isoString);
+                const now = new Date();
+                const diffMs = now - d;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHrs = Math.floor(diffMs / 3600000);
+                const diffDays = Math.floor(diffMs / 86400000);
+
+                if (diffMins < 1) return 'just now';
+                if (diffMins < 60) return `${diffMins}m ago`;
+                if (diffHrs < 24) return `${diffHrs}h ago`;
+                if (diffDays < 7) return `${diffDays}d ago`;
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+            } catch { return ''; }
+        }
+
+        function formatTags(tagsStr) {
+            if (!tagsStr) return '';
+            return tagsStr.split(',').filter(Boolean).map(t => `<span class="text-slate-400">#${t.trim()}</span>`).join(' ');
+        }
+
+        // -----------------------------------------------------------------------
+        // Keyboard shortcut: Ctrl/Cmd+K to focus search
+        // -----------------------------------------------------------------------
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                searchInput.focus();
+                searchInput.select();
+            }
+        });
+
+        // -----------------------------------------------------------------------
+        // Initialize – load accounts first (needed for snippet filtering), then snippets
+        // -----------------------------------------------------------------------
+        loadAccounts().then(() => fetchSnippets());
+    })();
+    </script>
+</body>
+</html>
