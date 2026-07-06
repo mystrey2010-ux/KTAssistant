@@ -26,35 +26,35 @@
         .toast.show { opacity: 1; }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-200 min-h-screen">
+<body class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 min-h-screen transition-colors">
 
     <!-- Header -->
-    <header class="border-b border-slate-700 bg-slate-850 sticky top-0 z-50">
+    <header class="border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-850 sticky top-0 z-50 transition-colors">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between flex-wrap gap-3">
             <h1 class="text-xl font-bold text-emerald-400 tracking-tight">KT Vault</h1>
             <div class="flex items-center gap-2 flex-wrap">
                 <!-- Search -->
                 <div id="searchBar">
                     <input type="search" id="searchInput" placeholder="Search snippets…"
-                        class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-500" />
+                        class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-400 dark:placeholder-slate-500" />
                 </div>
                 <!-- Export -->
-                <a href="/api/export" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors">Export JSON</a>
+                <a href="/api/export" class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg transition-colors">Export JSON</a>
                 <!-- Report (Markdown) -->
                 <button type="button" id="reportBtn"
-                    class="text-xs bg-slate-700 hover:bg-violet-600 text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
+                    class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-violet-600 text-slate-700 dark:text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-6 4h8a2 2 0 002-2V5a2 2 0 00-2-2H9a2 2 0 00-2 2v10z"/></svg>
                     Report
                 </button>
 
                 <!-- Report account selector dropdown -->
-                <div id="reportDropdown" class="hidden absolute right-[380px] top-full mt-1 bg-slate-850 border border-slate-700 rounded-lg shadow-xl z-50 w-80">
+                <div id="reportDropdown" class="hidden absolute right-[380px] top-full mt-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-50 w-80 transition-colors">
                     <div class="p-4 space-y-3">
-                        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+                        <h3 class="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                             <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-6 4h8a2 2 0 002-2V5a2 2 0 00-2-2H9a2 2 0 00-2 2v10z"/></svg>
                             Generate Report
                         </h3>
-                        <p class="text-xs text-slate-400">Select an account to export all its snippets as a Markdown file.</p>
+                        <p class="text-xs text-slate-600 dark:text-slate-400">Select an account to export all its snippets as a Markdown file.</p>
 
                         <!-- Account selector for report -->
                         <div>
@@ -72,67 +72,79 @@
                                 Download Report
                             </button>
                             <button type="button" id="reportCancelBtn"
-                                class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm py-1.5 px-4 rounded-lg transition-colors">
+                                class="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-sm py-1.5 px-4 rounded-lg transition-colors">
                                 Cancel
                             </button>
                         </div>
 
-                        <p id="reportHint" class="text-[10px] text-slate-500 mt-2">
+                        <p id="reportHint" class="text-[10px] text-slate-500 dark:text-slate-400 mt-2">
                             Create an account first to generate a report.
                         </p>
                     </div>
                 </div>
 
                 <!-- Import -->
-                <label for="importFile" class="cursor-pointer text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors select-none">Import JSON</label>
+                <label for="importFile" class="cursor-pointer text-xs bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg transition-colors select-none">Import JSON</label>
                 <input type="file" id="importFile" accept=".json" class="hidden" />
 
                 <!-- Load File (AI Extract) -->
                 <button type="button" id="loadFileBtn"
-                    class="text-xs bg-slate-700 hover:bg-violet-600 text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
+                    class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-violet-600 text-slate-700 dark:text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                     Load File
                 </button>
                 <input type="file" id="loadFileInput" accept=".txt,.md,.log" class="hidden" />
 
+                <!-- Dark/Light mode toggle -->
+                <label for="themeToggle" class="relative inline-flex items-center cursor-pointer select-none">
+                    <input type="checkbox" id="themeToggle" class="sr-only peer" checked>
+                    <div class="group w-12 h-6 bg-slate-700 rounded-full border-2 border-transparent transition-all duration-300 peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:bg-violet-600 peer-checked:border-violet-600"></div>
+                    <svg class="absolute left-0.5 w-5 h-5 text-yellow-400 transition-all duration-300 group-hover:text-yellow-300 pointer-events-none dark:opacity-0" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18V4M6.34 6.34L17.66 17.66M6 12h4m2 0h4"/>
+                    </svg>
+                    <svg class="absolute right-0.5 w-5 h-5 text-indigo-200 transition-all duration-300 group-hover:text-white pointer-events-none opacity-0 dark:opacity-100" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>
+                    </svg>
+                </label>
+
                 <!-- Account dropdown -->
                 <div class="relative">
                     <button type="button" id="accountDropdownToggle"
-                        class="text-xs bg-slate-700 hover:bg-indigo-600 text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5">
+                        class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-indigo-600 text-slate-700 dark:text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                         Accounts
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
-                    <div id="accountDropdownMenu" class="hidden absolute right-0 top-full mt-1 bg-slate-850 border border-slate-700 rounded-lg shadow-xl z-50 w-80">
+                    <div id="accountDropdownMenu" class="hidden absolute right-0 top-full mt-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-50 w-80 transition-colors">
                         <div class="p-3 space-y-3 max-h-[400px] overflow-y-auto">
                             <!-- Account selector -->
                             <select id="accountSelector"
-                                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors">
                                 <option value="">— No accounts configured —</option>
                             </select>
 
                             <!-- Inline add/edit form -->
-                            <div id="accountForm" class="hidden space-y-2 p-3 bg-slate-800 border border-indigo-500/40 rounded-lg">
+                            <div id="accountForm" class="hidden space-y-2 p-3 bg-white dark:bg-slate-800 border border-indigo-500/40 rounded-lg transition-colors">
                                 <input type="text" id="accountNameInput" placeholder="Account name *"
-                                    class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors" />
                                 <textarea id="accountDescInput" placeholder="Description (optional)" rows="2"
-                                    class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                                    class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"></textarea>
                                 <div id="accountFormButtons" class="flex gap-2">
                                     <button type="button" id="accountSaveBtn"
                                         class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium py-1 px-2 rounded transition-colors">Save</button>
                                     <button type="button" id="accountCancelBtn"
-                                        class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs py-1 px-2 rounded transition-colors">Cancel</button>
+                                        class="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs py-1 px-2 rounded transition-colors">Cancel</button>
                                 </div>
                             </div>
 
                             <!-- Action buttons -->
                             <div class="flex gap-2" id="accountActionButtons">
                                 <button type="button" id="accountAddBtn"
-                                    class="text-xs bg-slate-700 hover:bg-emerald-600 text-slate-300 hover:text-white py-1 px-2 rounded transition-colors flex-1">+ Add Account</button>
+                                    class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-emerald-600 text-slate-700 dark:text-slate-300 hover:text-white py-1 px-2 rounded transition-colors flex-1">+ Add Account</button>
                                 <button type="button" id="accountEditBtn" disabled
-                                    class="text-xs bg-slate-700 hover:bg-indigo-600 text-slate-300 hover:text-white py-1 px-2 rounded transition-colors flex-1 disabled:opacity-40">Edit</button>
+                                    class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-indigo-600 text-slate-700 dark:text-slate-300 hover:text-white py-1 px-2 rounded transition-colors flex-1 disabled:opacity-40">Edit</button>
                                 <button type="button" id="accountDeleteBtn" disabled
-                                    class="text-xs bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white py-1 px-2 rounded transition-colors flex-1 disabled:opacity-40">Delete</button>
+                                    class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-red-600 text-slate-700 dark:text-slate-300 hover:text-white py-1 px-2 rounded transition-colors flex-1 disabled:opacity-40">Delete</button>
                             </div>
 
                             <p id="accountHint" class="text-[10px] text-slate-500 mt-2">
@@ -150,19 +162,19 @@
         <div id="appLayout" class="flex flex-col min-h-[70vh]">
 
             <!-- Tab bar -->
-            <div class="border-b border-slate-700 bg-slate-850 sticky top-0 z-40">
+            <div class="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 sticky top-0 z-40 transition-colors">
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div class="flex overflow-x-auto pb-2 -mb-px scrollbar-hide">
                         <button data-tab="snippet" class="tab-btn active px-4 py-3 text-sm font-medium border-b-2 border-emerald-500 text-emerald-400 whitespace-nowrap">
                             New Snippet
                         </button>
-                        <button data-tab="saved" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-300 whitespace-nowrap">
+                        <button data-tab="saved" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300 whitespace-nowrap">
                             Saved Snippets
                         </button>
-                        <button data-tab="analysis" class="tab-btn hidden px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-300 whitespace-nowrap">
+                        <button data-tab="analysis" class="tab-btn hidden px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300 whitespace-nowrap">
                             Content Analysis <span class="analysis-count hidden ml-1 px-1.5 py-0.5 text-xs bg-red-500/20 text-red-400 rounded-full">0</span>
                         </button>
-                        <button data-tab="enhancement" class="tab-btn hidden px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-300 whitespace-nowrap">
+                        <button data-tab="enhancement" class="tab-btn hidden px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300 whitespace-nowrap">
                             Enhancement Suggestions <span class="enhancement-count hidden ml-1 px-1.5 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded-full">0</span>
                         </button>
                     </div>
@@ -176,21 +188,21 @@
 
                     <!-- Extracted snippets panel (shown after file load) -->
                     <div id="extractedPanel" class="hidden mb-5">
-                        <div class="bg-slate-850 border border-violet-500/40 rounded-xl p-5 space-y-3">
+                        <div class="bg-slate-100 dark:bg-slate-850 border border-violet-500/40 rounded-xl p-5 space-y-3 transition-colors">
                             <!-- Header with account selector and action buttons -->
                             <div class="flex items-start gap-3 flex-wrap">
-                                <h2 class="text-lg font-semibold text-white flex items-center gap-2 mb-1">
+                                <h2 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
                                     <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                    Extracted from <span id="extractSourceName" class="text-violet-300"></span>
+                                    Extracted from <span id="extractSourceName" class="text-violet-300 dark:text-violet-400"></span>
                                 </h2>
                             </div>
-                            <p id="extractMetaInfo" class="text-[11px] text-slate-500"></p>
+                            <p id="extractMetaInfo" class="text-[11px] text-slate-500 dark:text-slate-400"></p>
 
                             <!-- Account selector for saving extracted snippets -->
                             <div class="flex items-center gap-3 flex-wrap">
-                                <label for="extractAccountSelect" class="text-xs font-medium text-slate-400">Save to account:</label>
+                                <label for="extractAccountSelect" class="text-xs font-medium text-slate-600 dark:text-slate-400">Save to account:</label>
                                 <select id="extractAccountSelect" disabled
-                                    class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500 max-w-[280px]">
+                                    class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500 max-w-[280px] transition-colors">
                                     <option value="">— Select account —</option>
                                 </select>
                             </div>
@@ -202,7 +214,7 @@
                                     Save All
                                 </button>
                                 <button type="button" id="clearExtractBtn"
-                                    class="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white text-sm py-1.5 px-4 rounded-lg transition-colors">
+                                    class="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 hover:text-white text-sm py-1.5 px-4 rounded-lg transition-colors">
                                     Exit
                                 </button>
                             </div>
@@ -214,14 +226,14 @@
 
                     <!-- Loading overlay (shown during extraction) -->
                     <div id="extractLoading" class="hidden mb-5">
-                        <div class="bg-slate-850 border border-violet-500/40 rounded-xl p-6 flex flex-col items-center justify-center gap-3">
+                        <div class="bg-slate-100 dark:bg-slate-850 border border-violet-500/40 rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors">
                             <svg class="w-8 h-8 text-violet-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                             <p class="text-sm text-violet-300">AI is extracting relevant snippets…</p>
                         </div>
                     </div>
 
-                    <div id="snippetFormSection" class="bg-slate-850 border border-slate-700 rounded-xl p-5 space-y-6">
-                        <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2" id="newSnippetTitle">
+                    <div id="snippetFormSection" class="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl p-5 space-y-6 transition-colors">
+                        <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2" id="newSnippetTitle">
                             <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                             New Snippet
                         </h2>
@@ -231,7 +243,7 @@
                             <div>
                                 <label for="formAccountSelect" class="block text-xs font-medium text-slate-400 mb-1">Account *</label>
                                 <select id="formAccountSelect" name="account_id" required disabled
-                                    class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors">
                                     <option value="">Create an account first…</option>
                                 </select>
                             </div>
@@ -240,28 +252,28 @@
                             <div>
                                 <label for="titleInput" class="block text-xs font-medium text-slate-400 mb-1">Title *</label>
                             <input type="text" id="titleInput" name="title" required placeholder="e.g. How to reset Active Directory password"
-                                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-500" />
-                            </div>
+                                class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-400 dark:placeholder-slate-500 transition-colors" />
+                        </div>
 
-                            <!-- Category & Tags row -->
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label for="categoryInput" class="block text-xs font-medium text-slate-400 mb-1">Category</label>
-                            <input type="text" id="categoryInput" name="category" placeholder="General" value="General"
-                                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-500" />
-                                </div>
-                                <div>
-                                    <label for="tagsInput" class="block text-xs font-medium text-slate-400 mb-1">Tags</label>
-                                    <input type="text" id="tagsInput" name="tags" placeholder="active-directory, password"
-                                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-500" />
-                                </div>
-                            </div>
-
-                            <!-- Body -->
+                        <!-- Category & Tags row -->
+                        <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label for="bodyInput" class="block text-xs font-medium text-slate-400 mb-1">Body / Code *</label>
+                                <label for="categoryInput" class="block text-xs font-medium text-slate-400 dark:text-slate-400 mb-1">Category</label>
+                            <input type="text" id="categoryInput" name="category" placeholder="General" value="General"
+                                class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-400 dark:placeholder-slate-500 transition-colors" />
+                            </div>
+                            <div>
+                                <label for="tagsInput" class="block text-xs font-medium text-slate-400 dark:text-slate-400 mb-1">Tags</label>
+                                <input type="text" id="tagsInput" name="tags" placeholder="active-directory, password"
+                                    class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-400 dark:placeholder-slate-500 transition-colors" />
+                            </div>
+                        </div>
+
+                        <!-- Body -->
+                        <div>
+                            <label for="bodyInput" class="block text-xs font-medium text-slate-400 dark:text-slate-400 mb-1">Body / Code *</label>
                             <textarea id="bodyInput" name="body" required rows="8" placeholder="Paste the procedure, error message, or code snippet here…"
-                                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-500 resize-y"></textarea>
+                                class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-400 dark:placeholder-slate-500 resize-y transition-colors"></textarea>
                             </div>
 
                             <!-- Review / Save actions -->
@@ -272,7 +284,7 @@
                                 </button>
                                 <div class="flex gap-2">
                                     <button type="button" id="cancelEditBtn"
-                                        class="hidden bg-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2 px-4 rounded-lg transition-colors">
+                                        class="hidden bg-slate-100 dark:bg-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium py-2 px-4 rounded-lg transition-colors">
                                         Cancel
                                     </button>
                                     <button type="submit" id="saveBtn"
@@ -283,7 +295,7 @@
                             </div>
 
                             <!-- Stats -->
-                            <div class="mt-5 pt-4 border-t border-slate-700 text-xs text-slate-500">
+                            <div class="mt-5 pt-4 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-500 transition-colors">
                                 <span id="snippetCount">0</span> snippet(s) in vault.
                             </div>
                         </form>
@@ -292,13 +304,13 @@
 
                 <!-- Tab 2: Saved Snippets -->
                 <section id="tab-saved" class="tab-content hidden">
-                    <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                         Saved Snippets
                     </h2>
 
                     <!-- Empty state -->
-                    <div id="emptyState" class="hidden flex-col items-center justify-center py-16 text-slate-500">
+                    <div id="emptyState" class="hidden flex-col items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                         <svg class="w-16 h-16 mb-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                         <p class="text-sm">No snippets yet. Create your first one!</p>
                     </div>
@@ -309,14 +321,14 @@
 
                 <!-- Tab 3: Content Analysis -->
                 <section id="tab-analysis" class="tab-content hidden">
-                    <div class="bg-slate-850 border border-slate-700 rounded-xl p-5">
-                        <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <div class="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl p-5 transition-colors">
+                        <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                             <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             Content Analysis <span id="analysisCountBadge" class="ml-2 px-2 py-0.5 text-xs bg-red-500/20 text-red-400 rounded-full">0</span>
                         </h2>
 
                         <div id="contentGapsContainer" class="space-y-3 max-h-[70vh] overflow-y-auto">
-                            <div class="text-center py-12 text-slate-500">
+                            <div class="text-center py-12 text-slate-500 dark:text-slate-400">
                                 <p>Run AI review on a snippet first to see content analysis.</p>
                             </div>
                         </div>
@@ -325,14 +337,14 @@
 
                 <!-- Tab 4: Enhancement Suggestions -->
                 <section id="tab-enhancement" class="tab-content hidden">
-                    <div class="bg-slate-850 border border-slate-700 rounded-xl p-5">
-                        <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <div class="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl p-5 transition-colors">
+                        <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                             <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                             Enhancement Suggestions <span id="enhancementCountBadge" class="ml-2 px-2 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded-full">0</span>
                         </h2>
 
                         <div id="enhancementContainer" class="space-y-3 max-h-[70vh] overflow-y-auto">
-                            <div class="text-center py-12 text-slate-500">
+                            <div class="text-center py-12 text-slate-500 dark:text-slate-400">
                                 <p>Run AI review on a snippet first to see enhancement suggestions.</p>
                             </div>
                         </div>
@@ -354,6 +366,43 @@
         // DOM references
         // -----------------------------------------------------------------------
         const $ = (sel) => document.querySelector(sel);
+
+        // Theme toggle refs & helpers
+        const themeToggle = $('#themeToggle');
+        const htmlEl = document.documentElement;
+
+        function applyTheme(dark) {
+            if (dark) {
+                htmlEl.classList.add('dark');
+                localStorage.setItem('kt-vault-theme', 'dark');
+            } else {
+                htmlEl.classList.remove('dark');
+                localStorage.setItem('kt-vault-theme', 'light');
+            }
+        }
+
+        // Initialise theme from stored preference (default: system)
+        (() => {
+            const stored = localStorage.getItem('kt-vault-theme');
+            if (stored === null) {
+                applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches);
+            } else {
+                applyTheme(stored === 'dark');
+            }
+            themeToggle.checked = htmlEl.classList.contains('dark');
+        })();
+
+        // Listen for changes to the system preference (user didn't override)
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('kt-vault-theme')) {
+                applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches);
+            }
+        });
+
+        themeToggle.addEventListener('change', () => {
+            applyTheme(themeToggle.checked);
+        });
+
         const form = $('#snippetForm');
         const titleInput = $('#titleInput');
         const categoryInput = $('#categoryInput');
@@ -790,33 +839,33 @@
 
             filteredSnippets.forEach(snippet => {
                 const card = document.createElement('div');
-                card.className = 'bg-slate-850 border border-slate-700 rounded-xl p-4 hover:border-emerald-500/50 transition-colors fade-in group';
+                card.className = 'bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-emerald-500/50 transition-colors fade-in group';
                 card.setAttribute('data-snippet-id', snippet.id);
                 const timeAgo = formatDate(snippet.timestamp);
 
                 card.innerHTML = `
                     <div class="flex items-start justify-between gap-2 mb-2">
-                        <h3 class="font-semibold text-white text-sm leading-snug flex-1 min-w-0 truncate">${escapeHtml(snippet.title)}</h3>
+                        <h3 class="font-semibold text-slate-900 dark:text-white text-sm leading-snug flex-1 min-w-0 truncate">${escapeHtml(snippet.title)}</h3>
                         <button type="button" data-action="delete-${snippet.id}" title="Delete snippet"
                             class="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500/20 hover:bg-red-600 text-red-400 hover:text-white p-1.5 rounded-md shrink-0">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                         </button>
                     </div>
                     <div class="flex items-center gap-2 mb-3 text-xs flex-wrap">
-                        <span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full">${escapeHtml(snippet.account_name || 'Unknown')}</span>
-                        <span class="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">${escapeHtml(snippet.category)}</span>
-                        ${snippet.tags ? `<span class="text-slate-500">${formatTags(snippet.tags)}</span>` : ''}
-                        <span class="text-slate-600 ml-auto">${timeAgo}</span>
+                        <span class="bg-emerald-500/20 text-emerald-300 dark:text-emerald-400 px-2 py-0.5 rounded-full">${escapeHtml(snippet.account_name || 'Unknown')}</span>
+                        <span class="bg-indigo-500/20 text-indigo-300 dark:text-indigo-400 px-2 py-0.5 rounded-full">${escapeHtml(snippet.category)}</span>
+                        ${snippet.tags ? `<span class="text-slate-500 dark:text-slate-400">${formatTags(snippet.tags)}</span>` : ''}
+                        <span class="text-slate-500 dark:text-slate-600 ml-auto">${timeAgo}</span>
                     </div>
-                    <pre class="bg-slate-800 border border-slate-700 rounded-lg p-3 text-xs font-mono text-slate-300 whitespace-pre-wrap break-all max-h-48 overflow-y-auto mb-3">${escapeHtml(snippet.body)}</pre>
+                    <pre class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-xs font-mono text-slate-800 dark:text-slate-300 whitespace-pre-wrap break-all max-h-48 overflow-y-auto mb-3">${escapeHtml(snippet.body)}</pre>
                     <div class="flex items-center gap-2">
                         <button type="button" data-action="edit-${snippet.id}" title="Edit snippet"
-                            class="text-xs bg-slate-700 hover:bg-indigo-600 text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
+                            class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-indigo-600 text-slate-700 dark:text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             Edit
                         </button>
                         <button type="button" data-action="copy-${snippet.id}" title="Copy body to clipboard"
-                            class="text-xs bg-slate-700 hover:bg-emerald-600 text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
+                            class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-emerald-600 text-slate-700 dark:text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                             Copy
                         </button>
@@ -1467,21 +1516,21 @@
 
             snippets.forEach((item, idx) => {
                 const card = document.createElement('div');
-                card.className = 'bg-slate-800 border border-slate-700 rounded-lg p-3 group hover:border-violet-500/40 transition-colors';
+                card.className = 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 group hover:border-violet-500/40 transition-colors';
                 card.setAttribute('data-index', String(idx));
                 card.innerHTML = `
                     <div class="flex items-start justify-between gap-2 mb-2">
-                        <span class="font-medium text-white text-sm leading-snug flex-1 min-w-0 truncate">${escapeHtml(item.title)}</span>
+                        <span class="font-medium text-slate-900 dark:text-white text-sm leading-snug flex-1 min-w-0 truncate">${escapeHtml(item.title)}</span>
                         <button type="button" data-extract-fill="${idx}" title="Fill form with this snippet"
                             class="opacity-0 group-hover:opacity-100 transition-opacity bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-medium py-1 px-2 rounded-md shrink-0">
                             Fill Form
                         </button>
                     </div>
                     <div class="flex items-center gap-2 mb-2 text-xs flex-wrap">
-                        <span class="bg-violet-500/20 text-violet-300 px-1.5 py-0.5 rounded-full">${escapeHtml(item.category)}</span>
-                        ${item.tags ? `<span class="text-slate-500">${formatTags(item.tags)}</span>` : ''}
+                        <span class="bg-violet-500/20 text-violet-300 dark:text-violet-400 px-1.5 py-0.5 rounded-full">${escapeHtml(item.category)}</span>
+                        ${item.tags ? `<span class="text-slate-500 dark:text-slate-400">${formatTags(item.tags)}</span>` : ''}
                     </div>
-                    <pre class="bg-slate-900 border border-slate-700/60 rounded-md p-2.5 text-xs font-mono text-slate-300 whitespace-pre-wrap break-all max-h-32 overflow-y-auto">${escapeHtml(item.body)}</pre>
+                    <pre class="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-md p-2.5 text-xs font-mono text-slate-800 dark:text-slate-300 whitespace-pre-wrap break-all max-h-32 overflow-y-auto">${escapeHtml(item.body)}</pre>
 
                     <!-- Per-snippet action buttons -->
                     <div class="flex items-center gap-2 mt-3">
@@ -1491,7 +1540,7 @@
                             Save
                         </button>
                         <button type="button" data-extract-cancel="${idx}"
-                            class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 py-1 px-3 rounded-lg transition-colors flex items-center gap-1">
+                            class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 py-1 px-3 rounded-lg transition-colors flex items-center gap-1">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                             Cancel
                         </button>
