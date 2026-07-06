@@ -168,7 +168,7 @@ def _call_lmstudio(prompt, system_prompt=None):
     }
 
     try:
-        resp = requests.post(url, json=payload, timeout=60)
+        resp = requests.post(url, json=payload, timeout=300)
         resp.raise_for_status()
         data = resp.json()
         return data["choices"][0]["message"]["content"].strip()
@@ -183,8 +183,37 @@ def _call_lmstudio(prompt, system_prompt=None):
 
 
 # ---------------------------------------------------------------------------
-# Routes – Review / Enhance (AI-powered via LMStudio)
+# Routes – Extract / Review / Enhance (AI-powered via LMStudio)
 # ---------------------------------------------------------------------------
+
+_EXTRACT_SYSTEM_PROMPT = (
+    "You are a senior IT support knowledge transfer editor. Given the text below, "
+    "extract only the relevant snippets of information that would be useful for an "
+    "IT support engineer to perform a task or know as essential context.\n\n"
+    "Focus on:\n"
+    '  - Actionable procedures and step-by-step instructions\n'
+    '  - Known issues, workarounds, and fixes\n'
+    '  - Configuration details (IP addresses, service names, account names)\n'
+    '  - Important decisions or action items with assigned owners\n'
+    '  - Error codes and their resolutions\n\n'
+    "Ignore:\n"
+    '  - General pleasantries, meeting logistics, attendance lists\n'
+    '  - Redundant information already captured elsewhere\n'
+    '  - Speculation or unconfirmed details\n\n'
+    "Respond ONLY with valid JSON — no markdown fences, no explanations outside the JSON.\n\n"
+    "Return an array of extracted snippets. Each snippet must have this structure:\n"
+    '{\n'
+    '  "snippets": [\n'
+    '    {\n'
+    '      "title": "...short descriptive title...",\n'
+    '      "body": "...the extracted information, self-contained and clear...",\n'
+    '      "category": "...appropriate category (e.g. Procedure, Known Issue, Configuration)...",\n'
+    '      "tags": "...comma-separated keywords..."\n'
+    '    }\n'
+    '  ]\n'
+    '}'
+)
+
 
 _REVIEW_SYSTEM_PROMPT = (
     "You are a senior IT support knowledge transfer editor. Review the provided snippet for two things:\n\n"
@@ -566,6 +595,101 @@ def export_snippets():
     )
 
 
+@app.route("/api/export/markdown")
+def export_markdown():
+    """Export snippets for a specific account as a downloadable Markdown report file."""
+    account_id_str = request.args.get("account_id", "").strip()
+
+    if not account_id_str:
+        return jsonify({"error": "No account specified."}), 400
+
+    try:
+        account_id_int = int(account_id_str)
+    except ValueError:
+        return jsonify({"error": "Invalid account ID."}), 400
+
+    account = db.session.get(Account, account_id_int)
+    if not account:
+        return jsonify({"error": f"Account #{account_id_int} does not exist."}), 404
+
+    snippets = (
+        Snippet.query.filter_by(account_id=account_id_int)
+        .order_by(Snippet.timestamp.desc())
+        .all()
+    )
+
+    # Build Markdown content
+    md_lines: list[str] = []
+    md_lines.append(f"# KT Report: {account.name}")
+    md_lines.append("")
+    generated_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    md_lines.append(f"_Generated on {generated_ts}_")
+
+    if account.description:
+        md_lines.append("")
+        md_lines.append(f"**Description:** {account.description}")
+
+    md_lines.append("")
+    md_lines.append("## Summary")
+    md_lines.append("")
+    md_lines.append(f"- **Total snippets:** {len(snippets)}")
+
+    # Category breakdown
+    if snippets:
+        category_counts: dict[str, int] = {}
+        for s in snippets:
+            category_counts[s.category] = category_counts.get(s.category, 0) + 1
+        parts = [f"{cat} ({count})" for cat, count in sorted(category_counts.items())]
+        md_lines.append(f"- **Categories:** {', '.join(parts)}")
+
+    md_lines.append("")
+
+    if not snippets:
+        md_lines.append("*No snippets found for this account.*")
+    else:
+        # Group by category
+        grouped: dict[str, list[Snippet]] = {}
+        for s in snippets:
+            grouped.setdefault(s.category, []).append(s)
+
+        for category, cat_snippets in sorted(grouped.items()):
+            md_lines.append(f"## Category: {category}")
+            md_lines.append("")
+
+            for snippet in cat_snippets:
+                md_lines.append(f"### {snippet.title}")
+                md_lines.append("")
+
+                if snippet.tags:
+                    tags = ", ".join(t.strip() for t in snippet.tags.split(",") if t.strip())
+                    md_lines.append(f"**Tags:** {tags}")
+                    md_lines.append("")
+
+                ts_str = (
+                    snippet.timestamp.strftime("%Y-%m-%d %H:%M UTC")
+                    if snippet.timestamp
+                    else "N/A"
+                )
+                md_lines.append(f"*Date:* {ts_str}")
+                md_lines.append("")
+                md_lines.append("```text")
+                md_lines.append(snippet.body)
+                md_lines.append("```")
+                md_lines.append("")
+
+    content = "\n".join(md_lines)
+    safe_name = account.name.replace(" ", "_").replace("/", "_")
+    filename = f"kt_report_{safe_name}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.md"
+
+    output = io.BytesIO(content.encode("utf-8"))
+    return send_file(
+        output,
+        mimetype="text/markdown",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
 @app.route("/api/import", methods=["POST"])
 def import_snippets():
     """Import snippets from an uploaded JSON file. Merges by title+category."""
@@ -618,6 +742,178 @@ def import_snippets():
 
     count = len(imported_titles)
     return jsonify({"message": f"Imported {count} snippet(s)."}), 201
+
+
+# ---------------------------------------------------------------------------
+# Routes – Extract relevant snippets from uploaded text file (AI-powered)
+# ---------------------------------------------------------------------------
+
+
+_CHUNK_SIZE = 4096          # Characters per chunk sent to LMStudio
+_CHUNK_OVERLAP = 256        # Overlap between chunks to preserve context continuity
+_MAX_SNIPPETS_PER_CHUNK = 10
+
+
+def _chunk_text(text: str, size: int = _CHUNK_SIZE, overlap: int = _CHUNK_OVERLAP) -> list[str]:
+    """Split text into overlapping chunks so no sentence boundary is lost mid-chunk."""
+    if len(text) <= size:
+        return [text]
+
+    chunks: list[str] = []
+    start = 0
+    while start < len(text):
+        end = min(start + size, len(text))
+        # Try to break at a sentence boundary for cleaner context
+        if end < len(text):
+            # Look backwards up to `overlap` chars for the nearest line break
+            cut = text.rfind("\n", end - overlap, end)
+            if cut > start:
+                end = cut + 1
+        chunks.append(text[start:end].strip())
+        start = end - overlap if end < len(text) else end
+
+    return [c for c in chunks if c]
+
+
+@app.route("/api/extract", methods=["POST"])
+def extract_snippets():
+    """Upload a text file (e.g. Teams AI summary), chunk it, send to LMStudio per chunk, merge results."""
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided."}), 400
+
+    file = request.files["file"]
+    if file.filename == "" or file.content_type and not file.content_type.startswith("text/"):
+        # Allow common text formats even without proper content-type
+        allowed_exts = (".txt", ".md", ".log", ".csv")
+        if not any(file.filename.lower().endswith(ext) for ext in allowed_exts):
+            return jsonify({"error": "Upload a text-based file (.txt, .md, .log)."}), 400
+
+    try:
+        raw = file.read()
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return jsonify({"error": f"Could not decode file as UTF-8: {exc}"}), 400
+
+    if not content.strip():
+        return jsonify({"error": "File is empty."}), 400
+
+    chunks = _chunk_text(content)
+    num_chunks = len(chunks)
+    app.logger.info("Extracted %d chunk(s) from '%s' (%d chars total)", num_chunks, file.filename, len(content))
+
+    # Process each chunk through LMStudio and collect snippets
+    all_raw_snippets: list[dict] = []
+    for i, chunk in enumerate(chunks):
+        try:
+            response_text = _call_lmstudio(
+                prompt=chunk,
+                system_prompt=_EXTRACT_SYSTEM_PROMPT,
+            )
+        except RuntimeError as exc:  # pragma: no cover – network errors
+            return jsonify({"error": f"LMStudio failed on chunk {i + 1}: {exc}"}), 503
+
+        try:
+            data = json.loads(response_text)
+        except json.JSONDecodeError:
+            app.logger.warning("LMStudio returned non-JSON for extract chunk %d: %s", i, response_text[:200])
+            continue
+
+        extracted = data.get("snippets") or []
+        if isinstance(extracted, list):
+            all_raw_snippets.extend(extracted)
+
+    # Deduplicate and normalise snippets (by title — most chunks won't produce duplicates across chunk boundaries)
+    seen_titles: set[str] = set()
+    results: list[dict] = []
+    for item in all_raw_snippets[:_MAX_SNIPPETS_PER_CHUNK * num_chunks]:  # generous upper bound before dedup
+        snippet_data = {
+            "title": str(item.get("title", "")).strip(),
+            "body": str(item.get("body", "")).strip(),
+            "category": str(item.get("category", "General")).strip() or "General",
+            "tags": str(item.get("tags", "")).strip(),
+        }
+        if not snippet_data["title"] and not snippet_data["body"]:
+            continue
+        # Validate body has substance (at least 10 chars to filter noise)
+        if len(snippet_data["body"]) < 10:
+            continue
+
+        dedup_key = snippet_data["title"].lower()
+        if dedup_key in seen_titles:
+            continue  # skip duplicate title
+        seen_titles.add(dedup_key)
+        results.append(snippet_data)
+
+    truncated = len(content) > _CHUNK_SIZE
+    return jsonify({
+        "source": file.filename,
+        "chunks_processed": num_chunks,
+        "truncated": truncated,
+        "snippets": results[:_MAX_SNIPPETS_PER_CHUNK],  # final cap at 10
+    })
+
+
+@app.route("/api/extract/save-all", methods=["POST"])
+def save_all_extracted():
+    """Bulk-save extracted snippets to the vault for a given account. Duplicates (same title+category) are skipped."""
+    data = request.get_json(silent=True) or {}
+
+    account_id_str = str(data.get("account_id", "")).strip()
+    if not account_id_str:
+        return jsonify({"error": "No account selected."}), 400
+
+    try:
+        account_id = int(account_id_str)
+    except ValueError:
+        return jsonify({"error": "Invalid account ID."}), 400
+
+    account = db.session.get(Account, account_id)
+    if not account:
+        return jsonify({"error": f"Account #{account_id} does not exist."}), 404
+
+    snippets_in = data.get("snippets") or []
+    if not isinstance(snippets_in, list):
+        return jsonify({"error": "Expected a 'snippets' array in the request body."}), 400
+
+    saved_count = 0
+    skipped_count = 0
+    errors: list[str] = []
+
+    for item in snippets_in:
+        title = str(item.get("title", "")).strip()
+        category = str(item.get("category", "General")).strip() or "General"
+        body = str(item.get("body", "")).strip()
+        tags = str(item.get("tags", "")).strip()
+
+        if not title or len(body) < 10:
+            skipped_count += 1
+            continue
+
+        # Skip duplicates by title+category (case-insensitive)
+        existing = Snippet.query.filter(
+            db.and_(Snippet.title.ilike(title), Snippet.category.ilike(category))
+        ).first()
+        if existing:
+            skipped_count += 1
+            continue
+
+        snippet = Snippet(
+            account_id=account_id, title=title, category=category, body=body, tags=tags
+        )
+        db.session.add(snippet)
+        saved_count += 1
+
+    try:
+        db.session.commit()
+    except Exception as exc:  # pragma: no cover
+        db.session.rollback()
+        app.logger.error("save_all_extracted failed: %s", exc)
+        return jsonify({"error": "Failed to save snippets."}), 500
+
+    return jsonify({
+        "saved": saved_count,
+        "skipped_duplicates": skipped_count,
+    })
 
 
 # ---------------------------------------------------------------------------

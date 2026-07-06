@@ -40,9 +40,60 @@
                 </div>
                 <!-- Export -->
                 <a href="/api/export" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors">Export JSON</a>
+                <!-- Report (Markdown) -->
+                <button type="button" id="reportBtn"
+                    class="text-xs bg-slate-700 hover:bg-violet-600 text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-6 4h8a2 2 0 002-2V5a2 2 0 00-2-2H9a2 2 0 00-2 2v10z"/></svg>
+                    Report
+                </button>
+
+                <!-- Report account selector dropdown -->
+                <div id="reportDropdown" class="hidden absolute right-[380px] top-full mt-1 bg-slate-850 border border-slate-700 rounded-lg shadow-xl z-50 w-80">
+                    <div class="p-4 space-y-3">
+                        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+                            <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-6 4h8a2 2 0 002-2V5a2 2 0 00-2-2H9a2 2 0 00-2 2v10z"/></svg>
+                            Generate Report
+                        </h3>
+                        <p class="text-xs text-slate-400">Select an account to export all its snippets as a Markdown file.</p>
+
+                        <!-- Account selector for report -->
+                        <div>
+                            <label for="reportAccountSelect" class="block text-xs font-medium text-slate-400 mb-1">Account</label>
+                            <select id="reportAccountSelect" disabled
+                                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
+                                <option value="">— No accounts configured —</option>
+                            </select>
+                        </div>
+
+                        <!-- Action buttons -->
+                        <div class="flex gap-2 pt-1">
+                            <button type="button" id="reportGenerateBtn" disabled
+                                class="flex-1 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium py-1.5 px-4 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                                Download Report
+                            </button>
+                            <button type="button" id="reportCancelBtn"
+                                class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm py-1.5 px-4 rounded-lg transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+
+                        <p id="reportHint" class="text-[10px] text-slate-500 mt-2">
+                            Create an account first to generate a report.
+                        </p>
+                    </div>
+                </div>
+
                 <!-- Import -->
                 <label for="importFile" class="cursor-pointer text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors select-none">Import JSON</label>
                 <input type="file" id="importFile" accept=".json" class="hidden" />
+
+                <!-- Load File (AI Extract) -->
+                <button type="button" id="loadFileBtn"
+                    class="text-xs bg-slate-700 hover:bg-violet-600 text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    Load File
+                </button>
+                <input type="file" id="loadFileInput" accept=".txt,.md,.log" class="hidden" />
 
                 <!-- Account dropdown -->
                 <div class="relative">
@@ -122,8 +173,55 @@
             <div class="flex-1 mt-6">
                 <!-- Tab 1: New Snippet -->
                 <section id="tab-snippet" class="tab-content">
-                    <div class="bg-slate-850 border border-slate-700 rounded-xl p-5 space-y-6">
-                        <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+
+                    <!-- Extracted snippets panel (shown after file load) -->
+                    <div id="extractedPanel" class="hidden mb-5">
+                        <div class="bg-slate-850 border border-violet-500/40 rounded-xl p-5 space-y-3">
+                            <!-- Header with account selector and action buttons -->
+                            <div class="flex items-start gap-3 flex-wrap">
+                                <h2 class="text-lg font-semibold text-white flex items-center gap-2 mb-1">
+                                    <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                    Extracted from <span id="extractSourceName" class="text-violet-300"></span>
+                                </h2>
+                            </div>
+                            <p id="extractMetaInfo" class="text-[11px] text-slate-500"></p>
+
+                            <!-- Account selector for saving extracted snippets -->
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <label for="extractAccountSelect" class="text-xs font-medium text-slate-400">Save to account:</label>
+                                <select id="extractAccountSelect" disabled
+                                    class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500 max-w-[280px]">
+                                    <option value="">— Select account —</option>
+                                </select>
+                            </div>
+
+                            <!-- Action buttons -->
+                            <div class="flex items-center gap-2 flex-wrap" id="extractActionButtons">
+                                <button type="button" id="saveAllBtn" disabled
+                                    class="bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium py-1.5 px-4 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                                    Save All
+                                </button>
+                                <button type="button" id="clearExtractBtn"
+                                    class="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white text-sm py-1.5 px-4 rounded-lg transition-colors">
+                                    Exit
+                                </button>
+                            </div>
+
+                            <!-- Extracted snippets list -->
+                            <div id="extractedSnippetsList" class="space-y-3 max-h-[50vh] overflow-y-auto"></div>
+                        </div>
+                    </div>
+
+                    <!-- Loading overlay (shown during extraction) -->
+                    <div id="extractLoading" class="hidden mb-5">
+                        <div class="bg-slate-850 border border-violet-500/40 rounded-xl p-6 flex flex-col items-center justify-center gap-3">
+                            <svg class="w-8 h-8 text-violet-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <p class="text-sm text-violet-300">AI is extracting relevant snippets…</p>
+                        </div>
+                    </div>
+
+                    <div id="snippetFormSection" class="bg-slate-850 border border-slate-700 rounded-xl p-5 space-y-6">
+                        <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2" id="newSnippetTitle">
                             <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                             New Snippet
                         </h2>
@@ -296,6 +394,18 @@
         const snippetCount = $('#snippetCount');
         const importFile = $('#importFile');
 
+        // Load-file (AI extract) DOM refs
+        const loadFileBtn = $('#loadFileBtn');
+        const loadFileInput = $('#loadFileInput');
+        const extractedPanel = $('#extractedPanel');
+        const extractedSnippetsList = $('#extractedSnippetsList');
+        const clearExtractBtn = $('#clearExtractBtn');
+        const saveAllBtn = $('#saveAllBtn');
+        const extractAccountSelect = $('#extractAccountSelect');
+
+        // Current extracted snippets (kept in memory so individual/cancel ops work without re-fetching)
+        let currentExtractedSnippets = [];
+
         // Account DOM refs
         const accountSelector = $('#accountSelector');
         const formAccountSelect = $('#formAccountSelect');
@@ -308,6 +418,14 @@
         const accountSaveBtn = $('#accountSaveBtn');
         const accountCancelBtn = $('#accountCancelBtn');
         const accountHint = $('#accountHint');
+
+        // Report (Markdown export) DOM refs
+        const reportBtn = $('#reportBtn');
+        const reportDropdown = $('#reportDropdown');
+        const reportAccountSelect = $('#reportAccountSelect');
+        const reportGenerateBtn = $('#reportGenerateBtn');
+        const reportCancelBtn = $('#reportCancelBtn');
+        const reportHintEl = $('#reportHint');
 
         // Tab content containers
         const tabSnippet = $('#tab-snippet');
@@ -432,6 +550,74 @@
         });
 
         // -----------------------------------------------------------------------
+        // Report dropdown toggle / close / generate
+        // -----------------------------------------------------------------------
+        reportBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const wasHidden = reportDropdown.classList.contains('hidden');
+            if (wasHidden) {
+                reportDropdown.classList.remove('hidden');
+            } else {
+                reportDropdown.classList.add('hidden');
+            }
+        });
+
+        // Close report dropdown when clicking outside of it
+        document.addEventListener('click', (e) => {
+            if (!reportDropdown.contains(e.target) && !reportBtn.contains(e.target)) {
+                reportDropdown.classList.add('hidden');
+            }
+        });
+
+        // Prevent clicks inside the report dropdown from closing it via document listener
+        reportDropdown.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        // Report account selector change → enable/disable Generate button
+        reportAccountSelect.addEventListener('change', () => {
+            reportGenerateBtn.disabled = !reportAccountSelect.value;
+        });
+
+        // Cancel – close the dropdown without downloading
+        reportCancelBtn.addEventListener('click', () => {
+            reportDropdown.classList.add('hidden');
+        });
+
+        // Generate Report – fetch Markdown file for selected account and trigger download
+        reportGenerateBtn.addEventListener('click', async () => {
+            const accountId = reportAccountSelect.value;
+            if (!accountId) return;
+
+            try {
+                const url = `/api/export/markdown?account_id=${encodeURIComponent(accountId)}`;
+                const res = await fetch(url);
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${res.status}`);
+                }
+
+                // Use the filename from Content-Disposition header, falling back to a default
+                let filename = 'kt_report.md';
+                const disposition = res.headers.get('Content-Disposition');
+                if (disposition) {
+                    const match = disposition.match(/filename\*?=(?:UTF-8'')??"?([^";]+)"?/i);
+                    if (match) filename = decodeURIComponent(match[1]);
+                }
+
+                const blob = await res.blob();
+                downloadBlob(blob, filename);
+
+                reportDropdown.classList.add('hidden');
+                showToast(`Report generated: ${filename}`, 'success');
+            } catch (err) {
+                console.error('Generate report failed:', err);
+                showToast(`Failed to generate report: ${err.message}`, 'error');
+            }
+        });
+
+        // -----------------------------------------------------------------------
         // Fetch snippets from server (filtered by current account selection)
         // -----------------------------------------------------------------------
         async function fetchSnippets(query = '') {
@@ -487,13 +673,44 @@
                 buildOptions(accountSelector, true);   // manager dropdown (with "All")
                 buildOptions(formAccountSelect, false); // form dropdown (required, no "all")
 
-                // Enable/disable form selector based on whether accounts exist
+                // Extract panel account selector: only populated when accounts exist
                 const hasAccounts = accounts.length > 0;
+                if (hasAccounts) {
+                    extractAccountSelect.innerHTML = '';
+                    const defaultOpt = document.createElement('option');
+                    defaultOpt.value = '';
+                    defaultOpt.textContent = '— Select account —';
+                    extractAccountSelect.appendChild(defaultOpt);
+                    accounts.forEach(a => {
+                        const opt = document.createElement('option');
+                        opt.value = String(a.id);
+                        opt.textContent = a.name;
+                        extractAccountSelect.appendChild(opt);
+                    });
+
+                    // Report dropdown account selector: only populated when accounts exist
+                    reportAccountSelect.innerHTML = '';
+                    const reportDefaultOpt = document.createElement('option');
+                    reportDefaultOpt.value = '';
+                    reportDefaultOpt.textContent = '— Select an account —';
+                    reportAccountSelect.appendChild(reportDefaultOpt);
+                    accounts.forEach(a => {
+                        const opt = document.createElement('option');
+                        opt.value = String(a.id);
+                        opt.textContent = a.name;
+                        reportAccountSelect.appendChild(opt);
+                    });
+                }
+
+                // Enable/disable form selector based on whether accounts exist (already declared above)
                 formAccountSelect.disabled = !hasAccounts;
+                extractAccountSelect.disabled = !hasAccounts;
+                reportAccountSelect.disabled = !hasAccounts;
                 saveBtn.disabled = !hasAccounts;
                 accountEditBtn.disabled = !hasAccounts || accountSelector.value === '';
                 accountDeleteBtn.disabled = !hasAccounts || accountSelector.value === '';
                 accountHint.style.display = hasAccounts ? 'none' : 'block';
+                reportHintEl.style.display = hasAccounts ? 'none' : 'block';
 
                 // Update tab visibility based on accounts
                 updateTabVisibility();
@@ -515,6 +732,11 @@
             accountDeleteBtn.disabled = !hasAccounts || !hasSelectedAccount;
 
             applySearchFilter();
+        });
+
+        // Extract account selector change → enable/disable Save All button
+        extractAccountSelect.addEventListener('change', () => {
+            saveAllBtn.disabled = !extractAccountSelect.value;
         });
 
         // -----------------------------------------------------------------------
@@ -622,6 +844,20 @@
             // Store body text keyed by ID for copy/delete (avoid re-fetching)
             window._snippetBodies = {};
             allSnippets.forEach(s => { window._snippetBodies[s.id] = s.body; });
+        }
+
+        // -----------------------------------------------------------------------
+        // Download a Blob as a file (used for export / report downloads)
+        // -----------------------------------------------------------------------
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 100);
         }
 
         // -----------------------------------------------------------------------
@@ -1051,6 +1287,259 @@
                 importFile.value = ''; // reset file input
             }
         });
+
+        // -----------------------------------------------------------------------
+        // Load File (AI Extract) – upload text file for AI-powered snippet extraction
+        // -----------------------------------------------------------------------
+        loadFileBtn.addEventListener('click', () => {
+            loadFileInput.click();
+        });
+
+        loadFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Show loading state, hide any previous results and snippet form
+            extractedPanel.classList.add('hidden');
+            $('#extractLoading').classList.remove('hidden');
+            $('#snippetFormSection').classList.add('hidden');
+            document.querySelector('[data-tab="snippet"]').textContent = 'Extracted Snippet';
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/extract', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${res.status}`);
+                }
+
+                const data = await res.json();
+                $('#extractLoading').classList.add('hidden');
+
+                if (!data.snippets || data.snippets.length === 0) {
+                    showToast('No relevant snippets found in file.', 'info');
+                    return;
+                }
+
+                // Show source name and extracted snippets
+                $('#extractSourceName').textContent = data.source || 'Uploaded file';
+                const metaParts = [];
+                if (data.chunks_processed > 1) {
+                    metaParts.push(`${data.chunks_processed} chunk(s) processed`);
+                } else {
+                    metaParts.push('Single chunk');
+                }
+                if (data.truncated) {
+                    metaParts.push('file was large — first portion analyzed');
+                }
+                $('#extractMetaInfo').textContent = metaParts.join(' · ');
+                renderExtractedSnippets(data.snippets, data.truncated || false);
+                extractedPanel.classList.remove('hidden');
+                showToast(`Found ${data.snippets.length} snippet(s) in "${file.name}".`, 'success');
+
+            } catch (err) {
+                $('#extractLoading').classList.add('hidden');
+                console.error('Extraction failed:', err);
+                showToast(`Extraction failed: ${err.message}`, 'error');
+            } finally {
+                loadFileInput.value = ''; // reset file input
+            }
+        });
+
+        // -----------------------------------------------------------------------
+        // Extracted snippets – Save All / individual Save & Cancel handlers
+        // -----------------------------------------------------------------------
+
+        clearExtractBtn.addEventListener('click', () => {
+            extractedPanel.classList.add('hidden');
+            currentExtractedSnippets = [];
+            // Restore snippet form visibility and revert tab label
+            $('#snippetFormSection').classList.remove('hidden');
+            document.querySelector('[data-tab="snippet"]').textContent = 'New Snippet';
+            showToast('Cleared.', 'info');
+        });
+
+        saveAllBtn.addEventListener('click', async () => {
+            const accountId = extractAccountSelect.value;
+            if (!accountId) {
+                showToast('Please select an account first.', 'warning');
+                return;
+            }
+            if (currentExtractedSnippets.length === 0) return;
+
+            saveAllBtn.disabled = true;
+            saveAllBtn.textContent = 'Saving…';
+
+            try {
+                const res = await fetch('/api/extract/save-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ account_id: accountId, snippets: currentExtractedSnippets }),
+                });
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${res.status}`);
+                }
+
+                const data = await res.json();
+                showToast(`Saved ${data.saved} snippet(s). Skipped ${data.skipped_duplicates} duplicate(s).`, 'success');
+                extractedPanel.classList.add('hidden');
+                currentExtractedSnippets = [];
+                // Restore snippet form visibility and revert tab label
+                renderExtractedSnippets([], false);
+                fetchSnippets(searchInput.value.trim());
+            } catch (err) {
+                console.error('Save All failed:', err);
+                showToast(`Save all failed: ${err.message}`, 'error');
+            } finally {
+                saveAllBtn.disabled = false;
+                saveAllBtn.textContent = 'Save All';
+            }
+        });
+
+        async function saveSingleSnippet(index) {
+            const item = currentExtractedSnippets[index];
+            if (!item) return;
+
+            const accountId = extractAccountSelect.value;
+            if (!accountId) {
+                showToast('Please select an account first.', 'warning');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/extract/save-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ account_id: accountId, snippets: [item] }),
+                });
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${res.status}`);
+                }
+
+                const data = await res.json();
+                if (data.saved === 1) {
+                    showToast(`Saved: ${item.title}`, 'success');
+                    // Remove this card from the list and the in-memory array
+                    currentExtractedSnippets.splice(index, 1);
+                    renderExtractedSnippets(currentExtractedSnippets, false);
+                    fetchSnippets(searchInput.value.trim());
+
+                    // If no snippets remain, hide the panel
+                    if (currentExtractedSnippets.length === 0) {
+                        extractedPanel.classList.add('hidden');
+                    }
+                } else {
+                    showToast(`Skipped duplicate: ${item.title}`, 'info');
+                }
+            } catch (err) {
+                console.error('Save failed:', err);
+                showToast(`Failed to save "${item.title}": ${err.message}`, 'error');
+            }
+        }
+
+        function renderExtractedSnippets(snippets, truncated) {
+            extractedSnippetsList.innerHTML = '';
+            currentExtractedSnippets = snippets; // keep in sync with displayed list
+
+            const snippetFormSection = $('#snippetFormSection');
+            const snippetTabBtn = document.querySelector('[data-tab="snippet"]');
+
+            if (snippets.length > 0) {
+                // Hide the regular snippet form and switch tab label to "Extracted Snippet"
+                snippetFormSection.classList.add('hidden');
+                snippetTabBtn.textContent = 'Extracted Snippet';
+            } else {
+                // Restore snippet form visibility and revert tab label (no more extracted snippets)
+                snippetFormSection.classList.remove('hidden');
+                snippetTabBtn.textContent = 'New Snippet';
+            }
+
+            if (snippets.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'text-center py-8 text-slate-500';
+                empty.textContent = 'No snippets to display.';
+                extractedSnippetsList.appendChild(empty);
+                return;
+            }
+
+            snippets.forEach((item, idx) => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-800 border border-slate-700 rounded-lg p-3 group hover:border-violet-500/40 transition-colors';
+                card.setAttribute('data-index', String(idx));
+                card.innerHTML = `
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <span class="font-medium text-white text-sm leading-snug flex-1 min-w-0 truncate">${escapeHtml(item.title)}</span>
+                        <button type="button" data-extract-fill="${idx}" title="Fill form with this snippet"
+                            class="opacity-0 group-hover:opacity-100 transition-opacity bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-medium py-1 px-2 rounded-md shrink-0">
+                            Fill Form
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 mb-2 text-xs flex-wrap">
+                        <span class="bg-violet-500/20 text-violet-300 px-1.5 py-0.5 rounded-full">${escapeHtml(item.category)}</span>
+                        ${item.tags ? `<span class="text-slate-500">${formatTags(item.tags)}</span>` : ''}
+                    </div>
+                    <pre class="bg-slate-900 border border-slate-700/60 rounded-md p-2.5 text-xs font-mono text-slate-300 whitespace-pre-wrap break-all max-h-32 overflow-y-auto">${escapeHtml(item.body)}</pre>
+
+                    <!-- Per-snippet action buttons -->
+                    <div class="flex items-center gap-2 mt-3">
+                        <button type="button" data-extract-save="${idx}"
+                            class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white py-1 px-3 rounded-lg transition-colors flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                            Save
+                        </button>
+                        <button type="button" data-extract-cancel="${idx}"
+                            class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 py-1 px-3 rounded-lg transition-colors flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            Cancel
+                        </button>
+                    </div>
+                `;
+                extractedSnippetsList.appendChild(card);
+            });
+
+            // Wire fill-form buttons (keeps existing Fill Form hover behavior)
+            document.querySelectorAll('[data-extract-fill]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.getAttribute('data-extract-fill'));
+                    const item = currentExtractedSnippets[idx];
+                    if (!item) return;
+                    titleInput.value = item.title;
+                    categoryInput.value = item.category;
+                    bodyInput.value = item.body;
+                    tagsInput.value = item.tags || '';
+                    showToast(`Filled form: ${item.title}`, 'success');
+                });
+            });
+
+            // Wire individual Save buttons – each re-fetches from currentExtractedSnippets so indices stay accurate after removals
+            document.querySelectorAll('[data-extract-save]').forEach(btn => {
+                btn.addEventListener('click', () => saveSingleSnippet(parseInt(btn.getAttribute('data-extract-save'))));
+            });
+
+            // Wire individual Cancel buttons (remove just this card)
+            document.querySelectorAll('[data-extract-cancel]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.getAttribute('data-extract-cancel'));
+                    currentExtractedSnippets.splice(idx, 1);
+                    renderExtractedSnippets(currentExtractedSnippets, false);
+
+                    if (currentExtractedSnippets.length === 0) {
+                        extractedPanel.classList.add('hidden');
+                    }
+                });
+            });
+
+            // Show truncation note if applicable
+            if (truncated) {
+                const note = document.createElement('div');
+                note.className = 'text-[11px] text-slate-500 italic mt-2';
+                note.textContent = 'Note: file was truncated before extraction — only the first portion was analyzed.';
+                extractedSnippetsList.appendChild(note);
+            }
+        }
 
         // -----------------------------------------------------------------------
         // Utility helpers
