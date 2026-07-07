@@ -6,9 +6,12 @@ log, tag, search, and review KT snippets with grammar checking via LMStudio AI.
 """
 
 import io
+from docx import Document
 import json
 import os
 from datetime import datetime, timezone
+
+import re
 
 import requests
 from flask import (
@@ -151,7 +154,12 @@ LMSTUDIO_ENDPOINT = os.environ.get("LMSTUDIO_ENDPOINT", "http://192.168.50.2:123
 LMSTUDIO_MODEL = os.environ.get("LMSTUDIO_MODEL", "ornith-1.0-35b")
 
 
-def _call_lmstudio(prompt, system_prompt=None):
+def _sanitize_text(text: str) -> str:
+    """Remove characters that break JSON encoding or LMStudio parsing (null bytes, control chars)."""
+    return "".join(ch for ch in text if ord(ch) >= 32 and ch not in "\x07\x0b")
+
+
+def _call_lmstudio(prompt, system_prompt=None, max_tokens_override: int | None = None):
     """Send a prompt to LMStudio (OpenAI-compatible) and return the text response."""
     url = f"{LMSTUDIO_ENDPOINT}/v1/chat/completions"
 
@@ -164,7 +172,7 @@ def _call_lmstudio(prompt, system_prompt=None):
         "model": LMSTUDIO_MODEL,
         "messages": messages,
         "temperature": 0.3,
-        "max_tokens": 4096,
+        "max_tokens": max_tokens_override or 4096,
     }
 
     try:
@@ -177,8 +185,22 @@ def _call_lmstudio(prompt, system_prompt=None):
         raise RuntimeError(
             "Could not reach LMStudio. Check that it's running and the endpoint is correct."
         ) from exc
-    except Exception as exc:  # pragma: no cover – network errors
-        app.logger.error("LMStudio request failed: %s", exc)
+    except requests.exceptions.HTTPError as exc:  # pragma: no cover – network errors
+        status = exc.response.status_code if exc.response else "?"
+        error_body = ""
+        try:
+            error_body = exc.response.text[:500] if exc.response else "(no body)"
+        except Exception:
+            pass
+        app.logger.error(
+            "LMStudio HTTP %s (model=%s): %s | Body: %s",
+            status, LMSTUDIO_MODEL, exc, error_body,
+        )
+        raise RuntimeError(
+            f"Review service unavailable. LMStudio returned HTTP {status}: {error_body}"
+        ) from exc
+    except Exception as exc:  # pragma: no cover – other errors (e.g. JSON parse)
+        app.logger.error("LMStudio request failed (%s): %s", type(exc).__name__, exc)
         raise RuntimeError(f"Review service unavailable: {exc}") from exc
 
 
@@ -751,28 +773,211 @@ def import_snippets():
 
 _CHUNK_SIZE = 4096          # Characters per chunk sent to LMStudio
 _CHUNK_OVERLAP = 256        # Overlap between chunks to preserve context continuity
-_MAX_SNIPPETS_PER_CHUNK = 10
+_MAX_SNIPPETS_PER_CHUNK = 500  # Upper bound on raw snippets processed per chunk (practically unlimited)
+_EXTRACT_MAX_TOKENS = 4096  # Cap output tokens for extract (keeps response compact, avoids context budget waste)
 
 
-def _chunk_text(text: str, size: int = _CHUNK_SIZE, overlap: int = _CHUNK_OVERLAP) -> list[str]:
+def _recover_json(text: str):
+    """Parse AI response, recovering from truncated JSON (missing closing braces/brackets)."""
+    text = text.strip()
+
+    # Strip optional markdown code-fence wrappers (e.g. ```json ... ```)
+    text = re.sub(r'^```\w*\n?', '', text)
+    text = re.sub(r'\n?```$', '', text).strip()
+
+    if not text.startswith("{"):
+        return None  # not a JSON object
+
+    # Strategy 1: find the last point where bracket depth returned to zero
+    bracket_depth = 0
+    best_end = -1
+    in_string = False
+    escape_next = False
+
+    for i, ch in enumerate(text):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == "\\" and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in "{[":
+            bracket_depth += 1
+        elif ch in "}]":
+            bracket_depth -= 1
+            if bracket_depth >= 0:
+                best_end = i + 1
+
+    if best_end > 0:
+        try:
+            return json.loads(text[:best_end])
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 2: extract all complete snippet objects from the array.
+    # When LMStudio truncates mid-array, individual items may still be valid JSON.
+    # Track every matching { } pair at any nesting depth (inner objects too).
+    if '"snippets"' in text and "[" in text:
+        snippets = []
+        brace_stack: list[int] = []  # stack of open-brace positions for each depth level
+        for i, ch in enumerate(text):
+            if ch == '"' or ch == '\\':
+                continue
+            if ch == "{":
+                brace_stack.append(i)
+            elif ch == "}":
+                if brace_stack:
+                    start = brace_stack.pop()
+                    try:
+                        obj = json.loads(text[start:i + 1])
+                        if "title" in obj and "body" in obj:
+                            snippets.append(obj)
+                    except json.JSONDecodeError:
+                        pass
+
+        if snippets:
+            return {"snippets": snippets}
+
+    # Strategy 3: progressively trim trailing content to find valid JSON
+    for cut in range(len(text) - 1, max(0, len(text) - 500), -1):
+        candidate = text[:cut].rstrip()
+        if not (candidate.endswith("}") or candidate.endswith("]")):
+            continue
+        stripped = candidate.rstrip(",").rstrip()
+        try:
+            return json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+
+    # Strategy 4: find any { ... } block that looks like a snippet and wrap it.
+    # This handles cases where the model started writing snippets but got truncated
+    # before closing even the first one (no '}' characters at all).
+    brace_start = text.rfind("{")
+    if brace_start > 0 and "title" in text[brace_start : min(brace_start + 300, len(text))]:
+        # Try progressively extending from brace_start to find valid JSON
+        for end in range(len(text), brace_start, -1):
+            candidate = text[brace_start:end].rstrip().rstrip(",").rstrip()
+            if not candidate:
+                continue
+            try:
+                obj = json.loads(candidate)
+                return {"snippets": [obj]}
+            except json.JSONDecodeError:
+                continue
+
+    # Strategy 5 (best-effort): try to find a matching closing brace position even in malformed text.
+    if "title" in text:
+        brace_positions = [i for i, ch in enumerate(text) if ch == "{"]
+        if brace_positions:
+            start = brace_positions[-1]
+            depth = 0
+            found_close = -1
+            in_str = False
+            esc = False
+            for i in range(start, len(text)):
+                ch = text[i]
+                if esc: esc = False; continue
+                if ch == "\\" and in_str: esc = True; continue
+                if ch == '"': in_str = not in_str; continue
+                if in_str: continue
+                if ch == "{": depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0: found_close = i + 1; break
+
+            if found_close > start:
+                try:
+                    obj = json.loads(text[start:found_close])
+                    return {"snippets": [obj]}
+                except json.JSONDecodeError:
+                    pass
+
+            # No closing brace found — likely truncated mid-string. Try appending
+            # a closing quote + brace to complete the last open string value.
+            candidate = text[start:] + '"' + "}"
+            try:
+                obj = json.loads(candidate)
+                return {"snippets": [obj]}
+            except json.JSONDecodeError:
+                pass
+
+    return None  # could not recover
+
+
+def _chunk_text(text: str, size: int = _CHUNK_SIZE, overlap: int = _CHUNK_OVERLAP) -> list[tuple[str, int, int]]:
     """Split text into overlapping chunks so no sentence boundary is lost mid-chunk."""
-    if len(text) <= size:
-        return [text]
+    if not text.strip():
+        return []
 
-    chunks: list[str] = []
-    start = 0
-    while start < len(text):
-        end = min(start + size, len(text))
-        # Try to break at a sentence boundary for cleaner context
-        if end < len(text):
-            # Look backwards up to `overlap` chars for the nearest line break
-            cut = text.rfind("\n", end - overlap, end)
-            if cut > start:
-                end = cut + 1
-        chunks.append(text[start:end].strip())
-        start = end - overlap if end < len(text) else end
+    # Fast path: whole document fits in one chunk
+    lines = text.split("\n")
+    if len(lines) <= size and len(text) <= size:
+        return [(text.strip(), 1, max(1, len(lines)))]
 
-    return [c for c in chunks if c]
+    chunks: list[tuple[str, int, int]] = []
+    start_pos = 0
+    newlines_before_start = text[:start_pos].count("\n")
+
+    while start_pos < len(text):
+        end_pos = min(start_pos + size, len(text))
+        
+        # Try to break at a line boundary for cleaner context (look back into overlap zone)
+        if end_pos < len(text):
+            cut = text.rfind("\n", end_pos - overlap, end_pos)
+            if cut > start_pos:
+                end_pos = cut + 1
+        
+        chunk_text = text[start_pos:end_pos]
+        
+        # Line numbers are 1-based. Count how many newlines precede this chunk's start
+        # to determine the starting line number.
+        newlines_before = text[:start_pos].count("\n")
+        newlines_in_chunk = chunk_text.count("\n")
+        first_line = newlines_before + 1
+        last_line = max(first_line, first_line + newlines_in_chunk - 1)
+        
+        chunks.append((chunk_text.strip(), first_line, last_line))
+        
+        start_pos = end_pos
+
+    return chunks
+
+
+def _merge_tiny_chunks(chunks: list[tuple[str, int, int]], min_chars: int = 150) -> list[tuple[str, int, int]]:
+    """Merge adjacent chunks that are too small to extract meaningfully."""
+    if len(chunks) <= 1:
+        return chunks
+
+    merged: list[tuple[str, int, int]] = []
+    i = 0
+    while i < len(chunks):
+        chunk_text, first_line, last_line = chunks[i]
+        # If this is a tiny chunk and there's a next one, merge into the next
+        if len(chunk_text.strip()) < min_chars and i + 1 < len(chunks):
+            next_text, next_first, next_last = chunks[i + 1]
+            combined_text = f"{chunk_text} | {next_text}".strip()
+            # Use the earlier first_line so the range starts from where this chunk began
+            merged.append((combined_text, first_line, max(last_line, next_last)))
+            i += 2
+            continue
+        # If this is tiny but it's the last chunk, try merging into previous instead
+        elif len(chunk_text.strip()) < min_chars and merged:
+            prev_text, prev_first, prev_last = merged[-1]
+            combined_text = f"{prev_text} | {chunk_text}".strip()
+            # Extend the previous range to cover this tiny chunk's lines too
+            merged[-1] = (combined_text, prev_first, max(prev_last, last_line))
+            i += 1
+            continue
+        else:
+            merged.append(chunks[i])
+            i += 1
+
+    return merged
 
 
 @app.route("/api/extract", methods=["POST"])
@@ -782,45 +987,79 @@ def extract_snippets():
         return jsonify({"error": "No file provided."}), 400
 
     file = request.files["file"]
-    if file.filename == "" or file.content_type and not file.content_type.startswith("text/"):
-        # Allow common text formats even without proper content-type
+    # Allow common text formats even without proper content-type; docx handled separately below
+    if file.filename == "" or (file.content_type and not file.content_type.startswith("text/") and not file.filename.lower().endswith('.docx')):
         allowed_exts = (".txt", ".md", ".log", ".csv")
         if not any(file.filename.lower().endswith(ext) for ext in allowed_exts):
-            return jsonify({"error": "Upload a text-based file (.txt, .md, .log)."}), 400
+            return jsonify({"error": "Upload a supported file (.txt, .md, .log, .csv, or .docx)."}), 400
 
     try:
-        raw = file.read()
-        content = raw.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        return jsonify({"error": f"Could not decode file as UTF-8: {exc}"}), 400
+        raw_bytes = file.read()
+    except Exception as exc:
+        return jsonify({"error": f"Could not read uploaded file: {exc}"}), 400
+
+    # Extract plain text — docx files are unpacked paragraph-by-paragraph; everything else is treated as UTF-8 text.
+    if file.filename.lower().endswith(".docx"):
+        try:
+            doc = Document(io.BytesIO(raw_bytes))
+            # Sanitize paragraphs individually BEFORE joining — sanitize strips newlines,
+            # so joining after sanitization preserves paragraph separators as real \n chars.
+            sanitized_paragraphs = (_sanitize_text(p.text) for p in doc.paragraphs)
+            content = "\n".join(pt.strip() for pt in sanitized_paragraphs if pt.strip())
+        except Exception as exc:  # pragma: no cover – malformed .docx
+            return jsonify({"error": f"Could not read Word document: {exc}"}), 400
+    else:
+        try:
+            content = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            return jsonify({"error": f"Could not decode file as UTF-8: {exc}"}), 400
 
     if not content.strip():
         return jsonify({"error": "File is empty."}), 400
 
     chunks = _chunk_text(content)
+    chunks = _merge_tiny_chunks(chunks)
     num_chunks = len(chunks)
-    app.logger.info("Extracted %d chunk(s) from '%s' (%d chars total)", num_chunks, file.filename, len(content))
+    total_lines = content.count("\n") + 1 if content.strip() else 0
+    app.logger.info(
+        "Extracted %d chunk(s) from '%s' (%d chars, ~%d lines)",
+        num_chunks, file.filename, len(content), total_lines,
+    )
 
     # Process each chunk through LMStudio and collect snippets
     all_raw_snippets: list[dict] = []
     for i, chunk in enumerate(chunks):
+        app.logger.info(
+            "Processing chunk %d/%d (lines %d-%d, %d chars)",
+            i + 1, num_chunks, chunk[1], chunk[2], len(chunk[0]),
+        )
         try:
             response_text = _call_lmstudio(
-                prompt=chunk,
+                prompt=chunk[0],          # chunk is (text, first_line, last_line) – pass only the text
                 system_prompt=_EXTRACT_SYSTEM_PROMPT,
+                max_tokens_override=_EXTRACT_MAX_TOKENS,
             )
         except RuntimeError as exc:  # pragma: no cover – network errors
             return jsonify({"error": f"LMStudio failed on chunk {i + 1}: {exc}"}), 503
 
-        try:
-            data = json.loads(response_text)
-        except json.JSONDecodeError:
-            app.logger.warning("LMStudio returned non-JSON for extract chunk %d: %s", i, response_text[:200])
+        data = _recover_json(response_text)
+        if data is None:
+            reason = "empty response" if not response_text.strip() else f"unparseable ({response_text[:80]})"
+            app.logger.warning("Could not parse extract response for chunk %d (%s)", i, reason)
             continue
-
         extracted = data.get("snippets") or []
         if isinstance(extracted, list):
-            all_raw_snippets.extend(extracted)
+            # Tag each snippet with chunk index for source tracking later
+            tagged = []
+            for item in extracted:
+                tagged_item = dict(item)  # shallow copy to avoid mutating original
+                tagged_item["_chunk_idx"] = i  # internal field, stripped before saving
+                tagged.append(tagged_item)
+            all_raw_snippets.extend(tagged)
+            app.logger.info(
+                "Chunk %d/%d produced %d snippet(s)",
+                i + 1, num_chunks, len(extracted),
+            )
 
     # Deduplicate and normalise snippets (by title — most chunks won't produce duplicates across chunk boundaries)
     seen_titles: set[str] = set()
@@ -832,6 +1071,14 @@ def extract_snippets():
             "category": str(item.get("category", "General")).strip() or "General",
             "tags": str(item.get("tags", "")).strip(),
         }
+        # Attach source metadata using the chunk index that produced this snippet.
+        # This line is NOT part of body text, so AI review never sees it.
+        # It gets appended to the saved body on /api/extract/save-all after any review pass.
+        chunk_idx = item.get("_chunk_idx", 0) if isinstance(item, dict) else 0
+        source_line_start = chunks[chunk_idx][1] if chunks and 0 <= chunk_idx < len(chunks) else 0
+        source_line_end = chunks[chunk_idx][2] if chunks and 0 <= chunk_idx < len(chunks) else 0
+        snippet_data["source"] = f"{file.filename} · ~line {source_line_start} - {source_line_end}"
+
         if not snippet_data["title"] and not snippet_data["body"]:
             continue
         # Validate body has substance (at least 10 chars to filter noise)
@@ -844,12 +1091,13 @@ def extract_snippets():
         seen_titles.add(dedup_key)
         results.append(snippet_data)
 
-    truncated = len(content) > _CHUNK_SIZE
+    # File was fully processed via chunking — no content lost
     return jsonify({
         "source": file.filename,
         "chunks_processed": num_chunks,
-        "truncated": truncated,
-        "snippets": results[:_MAX_SNIPPETS_PER_CHUNK],  # final cap at 10
+        "extracted_total": len(all_raw_snippets),
+        "truncated": False,
+        "snippets": results,  # show all extracted snippets for user selection
     })
 
 

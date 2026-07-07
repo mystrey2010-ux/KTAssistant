@@ -7,4 +7,5 @@ dependencies:
   - pip:
       - flask
       - flask-sqlalchemy
+      - python-docx>=0.8.11
       - language_tool_python

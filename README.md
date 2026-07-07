@@ -32,6 +32,10 @@ KT Assistant/
 └── README.md                 # This file
 ```
 
+### Extraction Pipeline
+
+Files are chunked (4096 chars with 256-char overlap), each chunk sent to LMStudio independently, then results are merged and deduplicated by title. The UI shows the total number of raw snippets extracted across all chunks alongside the final deduplicated list so users can see exactly what was found.
+
 ### Data Model
 
 - **Account** – A customer or project. Holds a name, optional description, and timestamp. Snippets cannot be deleted while linked to an account; the account must first be cleared.
@@ -95,7 +99,7 @@ Click **Accounts** in the header toolbar → **+ Add Account** → enter a custo
 Switch to the **New Snippet** tab, select an account from the dropdown, fill in title / category / tags / body, then click **Save Snippet**. AI review is optional – use **Review & Enhance** for grammar + content analysis powered by LMStudio.
 
 ### 3. Extract from a Text File
-Click **Load File**, choose a `.txt`, `.md`, or `.log` file, and the AI will extract structured snippets automatically. Review the extracted list in the panel, pick an account to save them under, then click **Save All**.
+Click **Load File**, choose a `.txt`, `.md`, `.log`, or `.docx` file, and the AI will extract structured snippets automatically. The UI shows how many chunks were processed and the total number of raw snippets extracted across all chunks. All extracted snippets (after deduplication) appear in the panel — pick an account to save them under, then click **Save All**.
 
 ### 4. Search & Filter
 Use the search bar (top-right) for real-time filtering across title, category, body, tags, and account name. Switch to **Saved Snippets** tab for card-based browsing with edit / copy / delete actions per snippet.
