@@ -880,6 +880,10 @@
 
         // Saved Snippets account filter change → refetch snippets for that account
         savedAccountFilter.addEventListener('change', () => {
+            if (selectMode) {
+                selectedSnippetIds.length = 0;
+                updateSelectedCount();
+            }
             accountSelector.value = savedAccountFilter.value || '';
             fetchSnippets(searchInput.value.trim());
         });
@@ -1008,7 +1012,10 @@
                             selectedSnippetIds.push(id);
                         }
                     } else {
-                        selectedSnippetIds = selectedSnippetIds.filter(s => s !== id);
+                        const idx = selectedSnippetIds.indexOf(id);
+                        if (idx > -1) {
+                            selectedSnippetIds.splice(idx, 1);
+                        }
                     }
                     updateSelectedCount();
                 });
@@ -1116,14 +1123,13 @@
         }
 
         function selectAll() {
-            document.querySelectorAll('.snippet-checkbox').forEach(cb => {
-                cb.checked = true;
-                const id = parseInt(cb.getAttribute('data-snippet-id'));
-                if (!selectedSnippetIds.includes(id)) {
-                    selectedSnippetIds.push(id);
+            allSnippets.forEach(s => {
+                if (!selectedSnippetIds.includes(s.id)) {
+                    selectedSnippetIds.push(s.id);
                 }
             });
             updateSelectedCount();
+            renderSnippets();
         }
 
         function deselectAll() {
