@@ -957,6 +957,12 @@
                         ${snippet.tags ? `<span class="text-slate-500 dark:text-slate-400">${formatTags(snippet.tags)}</span>` : ''}
                         <span class="text-slate-500 dark:text-slate-600 ml-auto">${timeAgo}</span>
                     </div>
+                    ${snippet.source_filename || snippet.source_lines ? `
+                    <div class="flex items-center gap-x-3 mb-2 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                        ${snippet.source_filename ? `<span title="Source file"><svg class="w-3 h-3 inline mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 00.293.707V19a2 2 0 01-2 2z"/></svg>${escapeHtml(snippet.source_filename)}</span>` : ''}
+                        ${snippet.source_lines ? `<span title="Source lines"><svg class="w-3 h-3 inline mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>${escapeHtml(snippet.source_lines)}</span>` : ''}
+                    </div>
+                    ` : ''}
                     <pre class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-xs font-mono text-slate-800 dark:text-slate-300 whitespace-pre-wrap break-all max-h-48 overflow-y-auto mb-3">${escapeHtml(snippet.body)}</pre>
                     <div class="flex items-center gap-2">
                         <button type="button" data-action="edit-${snippet.id}" title="Edit snippet"
@@ -2049,8 +2055,12 @@
                         ${item.tags ? `<span class="text-slate-500 dark:text-slate-400">${formatTags(item.tags)}</span>` : ''}
                     </div>
                     <pre class="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-md p-2.5 text-xs font-mono text-slate-800 dark:text-slate-300 whitespace-pre-wrap break-all max-h-32 overflow-y-auto">${escapeHtml(item.body)}</pre>
-                    ${item.source ? `<div class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Source: ${escapeHtml(item.source)}</div>` : ''}
-
+                    ${item.source_filename || item.source_lines ? `
+                    <div class="flex items-center gap-x-3 mt-1.5 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                        ${item.source_filename ? `<span title="Source file"><svg class="w-3 h-3 inline mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 00.293.707V19a2 2 0 01-2 2z"/></svg>${escapeHtml(item.source_filename)}</span>` : ''}
+                        ${item.source_lines ? `<span title="Source lines"><svg class="w-3 h-3 inline mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>${escapeHtml(item.source_lines)}</span>` : ''}
+                    </div>
+                    ` : ''}
                     <!-- Per-snippet action buttons -->
                     <div class="flex items-center gap-2 mt-3">
                         <button type="button" data-extract-save="${idx}"

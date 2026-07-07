@@ -75,6 +75,8 @@ class Snippet(db.Model):
     category = db.Column(db.String(100), nullable=False, default="General")
     body = db.Column(db.Text, nullable=False)
     tags = db.Column(db.String(512), nullable=True)  # comma-separated tag string
+    source_filename = db.Column(db.String(512), nullable=True)  # e.g. "teams_summary.txt"
+    source_lines = db.Column(db.String(64), nullable=True)  # e.g. "~line 10-30"
     timestamp = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -96,6 +98,8 @@ class Snippet(db.Model):
             "category": self.category,
             "body": self.body,
             "tags": self.tags or "",
+            "source_filename": self.source_filename or "",
+            "source_lines": self.source_lines or "",
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
         }
 
@@ -107,6 +111,8 @@ class Snippet(db.Model):
             category=data.get("category", "General").strip(),
             body=data.get("body", "").strip(),
             tags=data.get("tags", ""),
+            source_filename=data.get("source_filename"),
+            source_lines=data.get("source_lines"),
         )
 
 
@@ -122,16 +128,31 @@ def _migrate_schema():
     conn = db.engine.connect()
     trans = conn.begin()
     try:
-        # Check whether snippets.account_id exists
+        # Check whether new columns exist on pre-existing DBs
         cursor = conn.execute(
             sa_text("PRAGMA table_info(snippets)")
         )
         columns = {row[1] for row in cursor}
+
         if "account_id" not in columns:
             conn.execute(
                 sa_text(
                     "ALTER TABLE snippets ADD COLUMN account_id INTEGER "
                     "REFERENCES accounts(id)"
+                )
+            )
+
+        if "source_filename" not in columns:
+            conn.execute(
+                sa_text(
+                    "ALTER TABLE snippets ADD COLUMN source_filename TEXT"
+                )
+            )
+
+        if "source_lines" not in columns:
+            conn.execute(
+                sa_text(
+                    "ALTER TABLE snippets ADD COLUMN source_lines TEXT"
                 )
             )
     except Exception as exc:  # pragma: no cover – depends on DB state
@@ -869,6 +890,14 @@ def export_markdown():
                     tags = ", ".join(t.strip() for t in snippet.tags.split(",") if t.strip())
                     md_lines.append(f"**Tags:** {tags}")
 
+                if snippet.source_filename or snippet.source_lines:
+                    parts = []
+                    if snippet.source_filename:
+                        parts.append(f"Source: `{snippet.source_filename}`")
+                    if snippet.source_lines:
+                        parts.append(snippet.source_lines)
+                    md_lines.append(" ".join(parts))
+
                 ts_str = (
                     snippet.timestamp.strftime("%Y-%m-%d %H:%M UTC")
                     if snippet.timestamp
@@ -1256,6 +1285,11 @@ def extract_snippets():
         source_line_start = chunks[chunk_idx][1] if chunks and 0 <= chunk_idx < len(chunks) else 0
         source_line_end = chunks[chunk_idx][2] if chunks and 0 <= chunk_idx < len(chunks) else 0
         snippet_data["source"] = f"{file.filename} · ~line {source_line_start} - {source_line_end}"
+        # Also store separately so the frontend can display them independently.
+        snippet_data["source_filename"] = file.filename
+        snippet_data["source_lines"] = (
+            f"~line {source_line_start} – {source_line_end}" if source_line_start else ""
+        )
 
         if not snippet_data["title"] and not snippet_data["body"]:
             continue
@@ -1311,6 +1345,10 @@ def save_all_extracted():
         body = str(item.get("body", "")).strip()
         tags = str(item.get("tags", "")).strip()
 
+        # Extract source metadata if present (from Load File extraction)
+        source_filename = item.get("source_filename")  # may be None for manually-created snippets
+        source_lines = item.get("source_lines")  # may be None for manually-created snippets
+
         if not title or len(body) < 10:
             skipped_count += 1
             continue
@@ -1324,7 +1362,9 @@ def save_all_extracted():
             continue
 
         snippet = Snippet(
-            account_id=account_id, title=title, category=category, body=body, tags=tags
+            account_id=account_id, title=title, category=category, body=body, tags=tags,
+            source_filename=source_filename or None,
+            source_lines=source_lines or None,
         )
         db.session.add(snippet)
         saved_count += 1
