@@ -309,7 +309,77 @@
                         Saved Snippets
                     </h2>
 
-                    <!-- Empty state -->
+                    <!-- Account filter + check duplicates -->
+                    <div class="flex items-center gap-3 mb-4">
+                        <label for="savedAccountFilter" class="text-xs font-medium text-slate-600 dark:text-slate-400 shrink-0">Show:</label>
+                        <select id="savedAccountFilter" disabled
+                            class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors">
+                            <option value="">— All Accounts —</option>
+                        </select>
+                        <button type="button" id="checkDuplicatesBtn"
+                            class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-indigo-600 text-slate-700 dark:text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            Check Duplicates
+                        </button>
+                        <button type="button" id="enterSelectBtn"
+                            class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-indigo-600 text-slate-700 dark:text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                            Select
+                        </button>
+                    </div>
+
+                    <!-- Multi-select toolbar (hidden by default) -->
+                    <div id="selectToolbar" class="hidden items-center gap-3 mb-4 p-2.5 bg-indigo-600 rounded-lg">
+                        <span class="text-xs font-medium text-white">Select Mode</span>
+                        <button type="button" id="selectAllBtn"
+                            class="text-xs bg-white/20 hover:bg-white/30 text-white py-1 px-2.5 rounded-md transition-colors whitespace-nowrap">
+                            Select All
+                        </button>
+                        <button type="button" id="deselectAllBtn"
+                            class="text-xs bg-white/20 hover:bg-white/30 text-white py-1 px-2.5 rounded-md transition-colors whitespace-nowrap">
+                            Deselect All
+                        </button>
+                        <span class="text-xs text-indigo-200 ml-auto"><span id="selectedCount">0</span> selected</span>
+                        <button type="button" id="deleteSelectedBtn" disabled
+                            class="text-xs bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-1 px-3 rounded-md transition-colors flex items-center gap-1 whitespace-nowrap">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            Delete Selected
+                        </button>
+                        <button type="button" id="cancelSelectBtn"
+                            class="text-xs bg-white/20 hover:bg-white/30 text-white py-1 px-2.5 rounded-md transition-colors whitespace-nowrap">
+                            Done
+                        </button>
+                    </div>
+
+                    <!-- Duplicate checker modal dialog -->
+                    <dialog id="duplicateDialog" class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-0 max-w-2xl w-[90vw] max-h-[85vh] overflow-hidden border border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                            <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                Check for Duplicates
+                            </h3>
+                            <button type="button" id="closeDuplicateBtn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">&times;</button>
+                        </div>
+                        <div class="overflow-y-auto max-h-[calc(85vh-120px)] p-4">
+                            <!-- Loading state -->
+                            <div id="dupLoading" class="hidden text-center py-10">
+                                <div class="animate-spin w-7 h-7 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Analyzing for duplicates…</p>
+                            </div>
+
+                            <!-- Empty state -->
+                            <div id="dupEmpty" class="hidden text-center py-10">
+                                <svg class="w-8 h-8 mx-auto mb-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <p class="text-sm text-slate-600 dark:text-slate-300">No duplicates found.</p>
+                                <p class="text-xs text-slate-500 mt-1" id="dupCheckedCount"></p>
+                            </div>
+
+                            <!-- Groups container -->
+                            <div id="dupGroups" class="space-y-3"></div>
+                        </div>
+                    </dialog>
+
+                    <!-- Empty state (snippets) -->
                     <div id="emptyState" class="hidden flex-col items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                         <svg class="w-16 h-16 mb-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                         <p class="text-sm">No snippets yet. Create your first one!</p>
@@ -467,6 +537,7 @@
         const accountSaveBtn = $('#accountSaveBtn');
         const accountCancelBtn = $('#accountCancelBtn');
         const accountHint = $('#accountHint');
+        const savedAccountFilter = $('#savedAccountFilter');
 
         // Report (Markdown export) DOM refs
         const reportBtn = $('#reportBtn');
@@ -751,6 +822,25 @@
                     });
                 }
 
+                // Saved Snippets account filter dropdown: "All Accounts" + per-account options
+                savedAccountFilter.innerHTML = '';
+                const allAccountsOpt = document.createElement('option');
+                allAccountsOpt.value = '';
+                allAccountsOpt.textContent = '— All Accounts —';
+                savedAccountFilter.appendChild(allAccountsOpt);
+                accounts.forEach(a => {
+                    const opt = document.createElement('option');
+                    opt.value = String(a.id);
+                    opt.textContent = a.name;
+                    savedAccountFilter.appendChild(opt);
+                });
+
+                // Enable/disable saved account filter based on whether accounts exist
+                savedAccountFilter.disabled = !hasAccounts;
+
+                // Sync saved-snippets filter selection to header selector so fetchSnippets uses it
+                accountSelector.value = savedAccountFilter.value || '';
+
                 // Enable/disable form selector based on whether accounts exist (already declared above)
                 formAccountSelect.disabled = !hasAccounts;
                 extractAccountSelect.disabled = !hasAccounts;
@@ -786,6 +876,12 @@
         // Extract account selector change → enable/disable Save All button
         extractAccountSelect.addEventListener('change', () => {
             saveAllBtn.disabled = !extractAccountSelect.value;
+        });
+
+        // Saved Snippets account filter change → refetch snippets for that account
+        savedAccountFilter.addEventListener('change', () => {
+            accountSelector.value = savedAccountFilter.value || '';
+            fetchSnippets(searchInput.value.trim());
         });
 
         // -----------------------------------------------------------------------
@@ -839,19 +935,23 @@
 
             filteredSnippets.forEach(snippet => {
                 const card = document.createElement('div');
-                card.className = 'bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-emerald-500/50 transition-colors fade-in group';
+                const isSelected = selectedSnippetIds.includes(snippet.id);
+                card.className = 'bg-white dark:bg-slate-850 border rounded-xl p-4 transition-colors fade-in group' +
+                    (isSelected ? ' ring-2 ring-indigo-500 border-indigo-500/50' : ' border-slate-200 dark:border-slate-700 hover:border-emerald-500/50');
                 card.setAttribute('data-snippet-id', snippet.id);
                 const timeAgo = formatDate(snippet.timestamp);
 
                 card.innerHTML = `
-                    <div class="flex items-start justify-between gap-2 mb-2">
+                    <div class="flex items-start gap-2 mb-2">
+                        ${selectMode ? `<input type="checkbox" class="snippet-checkbox mt-1 shrink-0 w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer" data-snippet-id="${snippet.id}" ${isSelected ? 'checked' : ''}>` : ''}
                         <h3 class="font-semibold text-slate-900 dark:text-white text-sm leading-snug flex-1 min-w-0 truncate">${escapeHtml(snippet.title)}</h3>
-                        <button type="button" data-action="delete-${snippet.id}" title="Delete snippet"
+                        ${!selectMode ? `<button type="button" data-action="delete-${snippet.id}" title="Delete snippet"
                             class="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500/20 hover:bg-red-600 text-red-400 hover:text-white p-1.5 rounded-md shrink-0">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                        </button>
+                        </button>` : ''}
                     </div>
                     <div class="flex items-center gap-2 mb-3 text-xs flex-wrap">
+                        <span class="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">#${snippet.id}</span>
                         <span class="bg-emerald-500/20 text-emerald-300 dark:text-emerald-400 px-2 py-0.5 rounded-full">${escapeHtml(snippet.account_name || 'Unknown')}</span>
                         <span class="bg-indigo-500/20 text-indigo-300 dark:text-indigo-400 px-2 py-0.5 rounded-full">${escapeHtml(snippet.category)}</span>
                         ${snippet.tags ? `<span class="text-slate-500 dark:text-slate-400">${formatTags(snippet.tags)}</span>` : ''}
@@ -866,7 +966,7 @@
                         </button>
                         <button type="button" data-action="copy-${snippet.id}" title="Copy body to clipboard"
                             class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-emerald-600 text-slate-700 dark:text-slate-300 hover:text-white py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 02-2v-8a2 2 0 00-2 2v8a2 2 0 02 2z"/></svg>
                             Copy
                         </button>
                     </div>
@@ -886,8 +986,26 @@
                 } else if (action === 'copy') {
                     btn.addEventListener('click', () => copySnippet(id));
                 } else if (action === 'delete') {
-                    btn.addEventListener('click', () => deleteSnippet(id));
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        deleteSnippet(id);
+                    });
                 }
+            });
+
+            // Wire up checkbox change events for multi-select
+            document.querySelectorAll('.snippet-checkbox').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const id = parseInt(cb.getAttribute('data-snippet-id'));
+                    if (cb.checked) {
+                        if (!selectedSnippetIds.includes(id)) {
+                            selectedSnippetIds.push(id);
+                        }
+                    } else {
+                        selectedSnippetIds = selectedSnippetIds.filter(s => s !== id);
+                    }
+                    updateSelectedCount();
+                });
             });
 
             // Store body text keyed by ID for copy/delete (avoid re-fetching)
@@ -944,6 +1062,397 @@
                 showToast('Failed to delete snippet.', 'error');
             }
         };
+
+        // -----------------------------------------------------------------------
+        // Multi-select mode – selection state and UI
+        // -----------------------------------------------------------------------
+        let selectMode = false;
+        const selectedSnippetIds = [];
+
+        function toggleSelectMode() {
+            if (selectMode) {
+                exitSelectMode();
+            } else {
+                enterSelectMode();
+            }
+        }
+
+        function enterSelectMode() {
+            selectMode = true;
+            selectedSnippetIds.length = 0;
+            document.getElementById('enterSelectBtn').classList.add('hidden');
+            document.getElementById('selectToolbar').classList.remove('hidden');
+            document.getElementById('selectToolbar').classList.add('flex');
+            updateSelectedCount();
+            renderSnippets();
+        }
+
+        function exitSelectMode() {
+            selectMode = false;
+            selectedSnippetIds.length = 0;
+            document.getElementById('enterSelectBtn').classList.remove('hidden');
+            document.getElementById('selectToolbar').classList.add('hidden');
+            document.getElementById('selectToolbar').classList.remove('flex');
+            renderSnippets();
+        }
+
+        function updateSelectedCount() {
+            const count = selectedSnippetIds.length;
+            document.getElementById('selectedCount').textContent = count;
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
+            if (count === 0) {
+                deleteBtn.disabled = true;
+                deleteBtn.textContent = 'Delete Selected';
+            } else {
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete Selected (${count})`;
+            }
+        }
+
+        function selectAll() {
+            document.querySelectorAll('.snippet-checkbox').forEach(cb => {
+                cb.checked = true;
+                const id = parseInt(cb.getAttribute('data-snippet-id'));
+                if (!selectedSnippetIds.includes(id)) {
+                    selectedSnippetIds.push(id);
+                }
+            });
+            updateSelectedCount();
+        }
+
+        function deselectAll() {
+            document.querySelectorAll('.snippet-checkbox').forEach(cb => {
+                cb.checked = false;
+            });
+            selectedSnippetIds.length = 0;
+            updateSelectedCount();
+        }
+
+        window.batchDeleteSelectedSnippets = async function() {
+            if (selectedSnippetIds.length === 0) return;
+            const count = selectedSnippetIds.length;
+            if (!confirm(`Are you sure you want to delete ${count} snippet${count > 1 ? 's' : ''}? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/snippets/delete-batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: selectedSnippetIds })
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                const data = await res.json();
+                showToast(`Deleted ${data.deleted} snippet${data.deleted !== 1 ? 's' : ''}.`, 'info');
+                exitSelectMode();
+                fetchSnippets(searchInput.value.trim());
+            } catch (err) {
+                console.error('Batch delete failed:', err);
+                showToast('Failed to delete selected snippets.', 'error');
+            }
+        };
+
+        // -----------------------------------------------------------------------
+        // Duplicate checker – modal + AI-based duplicate detection
+        // -----------------------------------------------------------------------
+        function showDupElement(id) { document.getElementById(id)?.classList.remove('hidden'); }
+        function hideDupElement(id) { document.getElementById(id)?.classList.add('hidden'); }
+        function hideDupElements(ids) { ids.forEach(id => hideDupElement(id)); }
+
+        async function openDuplicateDialog() {
+            const dialog = document.getElementById('duplicateDialog');
+            if (!dialog) return;
+            showDupElement('dupLoading');
+            hideDupElements(['dupEmpty', 'dupGroups']);
+            dialog.showModal();
+            runCheckDuplicates();
+        }
+
+        async function runCheckDuplicates() {
+            const btn = document.getElementById('checkDuplicatesBtn');
+            if (!btn) return;
+
+            showDupElement('dupLoading');
+            hideDupElements(['dupEmpty', 'dupGroups']);
+
+            // 5-minute browser timeout (matches server-side _call_lmstudio timeout=300)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="animate-spin w-3.5 h-3.5 border border-t-transparent rounded-full inline-block"></span> Checking…';
+
+                const q = searchInput.value.trim();
+                const accountId = savedAccountFilter.value || '';
+
+                const res = await fetch('/api/snippets/check-duplicates', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    signal: controller.signal,
+                    body: JSON.stringify({q, account_id: accountId})
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                clearTimeout(timeoutId);
+
+                hideDupElement('dupLoading');
+
+                if (data.groups.length === 0) {
+                    showDupElement('dupEmpty');
+                    document.getElementById('dupCheckedCount').textContent = `${data.total_checked} snippets checked.`;
+                    return;
+                }
+
+                renderDupGroups(data.groups);
+            } catch (err) {
+                clearTimeout(timeoutId);
+
+                if (err.name === 'AbortError') {
+                    showToast('Timed out waiting for AI response.', 'error');
+                } else {
+                    console.error('Check duplicates failed:', err);
+                    showToast('Failed to check for duplicates.', 'error');
+                }
+                
+                // Close dialog and refresh saved snippets on error/timeout
+                const dialog = document.getElementById('duplicateDialog');
+                if (dialog) {
+                    dialog.close();
+                    fetchSnippets(searchInput.value.trim());
+                }
+            } finally {
+                clearTimeout(timeoutId);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Check Duplicates';
+                }
+            }
+        }
+
+        function renderDupGroups(groups) {
+            const container = document.getElementById('dupGroups');
+            if (!container) return;
+            container.innerHTML = '';
+
+            groups.forEach((group, gIdx) => {
+                const card = document.createElement('div');
+                card.className = 'border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden';
+
+                // Header (collapsible toggle)
+                const header = document.createElement('button');
+                header.className = 'w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors';
+                header.innerHTML = `
+                    <div>
+                        <span class="text-xs font-medium text-slate-700 dark:text-slate-300">Group ${gIdx + 1}</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 ml-2">${group.snippets.length} found</span>
+                    </div>
+                    <svg class="w-4 h-4 text-slate-400 dup-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                `;
+
+                // Body (hidden by default, expanded on header click)
+                const body = document.createElement('div');
+                body.className = 'dup-body hidden border-t border-slate-200 dark:border-slate-700';
+
+                let itemsHtml = '';
+                group.snippets.forEach((s, sIdx) => {
+                    const isKeep = sIdx === 0; // first item = most recent = default "keep"
+                    itemsHtml += `
+                        <label class="flex items-start gap-2 p-2 rounded hover:bg-white dark:hover:bg-slate-800/30 cursor-pointer transition-colors ${isKeep ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}">
+                            <input type="checkbox" class="dup-checkbox mt-0.5" data-group="${gIdx}" data-id="${s.id}">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs font-medium text-slate-700 dark:text-slate-300">${escapeHtml(s.title)}</span>
+                                    ${isKeep ? '<span class="text-[10px] bg-indigo-500/20 text-indigo-600 px-1.5 py-0.5 rounded keep-default">Keep</span>' : ''}
+                                </div>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">${escapeHtml(s.body)}</p>
+                            </div>
+                        </label>`;
+                });
+
+                body.innerHTML = `
+                    <p class="text-xs text-slate-500 dark:text-slate-400 px-3 py-2 italic">Reason: ${escapeHtml(group.reason || 'Semantically similar content')}</p>
+                    <div class="space-y-1">${itemsHtml}</div>
+                    <div class="flex items-center justify-end gap-2 p-3 border-t border-slate-200 dark:border-slate-700">
+                        <button type="button" data-keep-group="${gIdx}" 
+                            class="text-xs bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 py-1.5 px-3 rounded-lg transition-colors">
+                            Keep Selected (0)
+                        </button>
+                        <button type="button" data-delete-group="${gIdx}" 
+                            class="text-xs bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 py-1.5 px-3 rounded-lg transition-colors">
+                            Delete Selected (0)
+                        </button>
+                    </div>`;
+
+                card.append(header, body);
+                container.appendChild(card);
+
+                // Wire collapsible header toggle
+                header.addEventListener('click', () => {
+                    const chevron = header.querySelector('.dup-chevron');
+                    if (body.classList.contains('hidden')) {
+                        body.classList.remove('hidden');
+                        chevron.classList.add('rotate-180');
+                    } else {
+                        body.classList.add('hidden');
+                        chevron.classList.remove('rotate-180');
+                    }
+                });
+
+                // Wire checkbox changes → update button count per group
+                body.querySelectorAll('.dup-checkbox').forEach(cb => {
+                    cb.addEventListener('change', () => {
+                        updateGroupDeleteBtn(gIdx);
+                        updateKeepBtn(gIdx);
+                    });
+                });
+
+                // Initialize button states for this group (all unchecked = "Nothing selected" / "Keep Selected (0)")
+                updateGroupDeleteBtn(gIdx);
+                updateKeepBtn(gIdx);
+
+                // Wire keep button click → uncheck all others, mark selected as Keep
+                const keepBtn = document.querySelector(`[data-keep-group="${gIdx}"]`);
+                if (keepBtn) {
+                    keepBtn.addEventListener('click', () => setKeepGroup(gIdx));
+                }
+            });
+
+            showDupElement('dupGroups');
+        }
+
+        function updateGroupDeleteBtn(gIdx) {
+            const checked = [...document.querySelectorAll(`.dup-checkbox[data-group="${gIdx}"]:checked`)].length;
+            const btn = document.querySelector(`[data-delete-group="${gIdx}"]`);
+            if (!btn) return;
+            if (checked === 0) {
+                btn.textContent = 'Nothing selected';
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                btn.textContent = `Delete Selected (${checked})`;
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function updateKeepBtn(gIdx) {
+            const checked = [...document.querySelectorAll(`.dup-checkbox[data-group="${gIdx}"]:checked`)].length;
+            const btn = document.querySelector(`[data-keep-group="${gIdx}"]`);
+            if (!btn) return;
+            if (checked === 1) {
+                btn.textContent = 'Keep Selected';
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                btn.textContent = `Keep Selected (${checked})`;
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function setKeepGroup(gIdx) {
+            const checkboxes = [...document.querySelectorAll(`.dup-checkbox[data-group="${gIdx}"]`)];
+            
+            // Remember which one was selected before clearing state
+            let keepId = null;
+            checkboxes.forEach(cb => {
+                if (cb.checked) keepId = parseInt(cb.dataset.id);
+            });
+            
+            if (!keepId) return; // Nothing was checked, do nothing
+            
+            // Uncheck everything and remove all Keep indicators
+            checkboxes.forEach(cb => {
+                cb.checked = false;
+                const label = cb.closest('label');
+                if (label) {
+                    label.querySelectorAll('.keep-default').forEach(el => el.remove());
+                    label.querySelectorAll('.keep-indicator').forEach(el => el.remove());
+                }
+            });
+            
+            // Add the Keep indicator to the selected snippet
+            const keepCb = checkboxes.find(cb => parseInt(cb.dataset.id) === keepId);
+            if (keepCb) {
+                const label = keepCb.closest('label');
+                if (label) {
+                    const titleEl = label.querySelector('.flex-1 > div:first-child span');
+                    if (titleEl) {
+                        const keepBadge = document.createElement('span');
+                        keepBadge.className = 'text-[10px] bg-indigo-500/20 text-indigo-600 px-1.5 py-0.5 rounded ml-1 keep-indicator';
+                        keepBadge.textContent = 'Keep';
+                        titleEl.appendChild(keepBadge);
+                    }
+                }
+            }
+            
+            // Update button states to reflect all unchecked
+            updateGroupDeleteBtn(gIdx);
+            const btn = document.querySelector(`[data-keep-group="${gIdx}"]`);
+            if (btn) {
+                btn.textContent = 'Nothing selected';
+                btn.disabled = true;
+            }
+        }
+
+        // Wire delete buttons via event delegation on dupGroups container
+        document.getElementById('dupGroups')?.addEventListener('click', async (e) => {
+            const btn = e.target.closest('[data-delete-group]');
+            if (!btn || btn.disabled) return;
+
+            const gIdx = btn.getAttribute('data-delete-group');
+            const checkedIds = [...document.querySelectorAll(`.dup-checkbox[data-group="${gIdx}"]:checked`)].map(cb => parseInt(cb.dataset.id));
+            if (checkedIds.length === 0) return;
+
+            if (!confirm(`Delete ${checkedIds.length} snippet(s)?\n\nThis cannot be undone.`)) return;
+
+            try {
+                const res = await fetch('/api/snippets/delete-batch', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ids: checkedIds})
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                showToast(`Deleted ${data.deleted} snippet(s).`, 'info');
+
+                // Close duplicate dialog after successful deletion — refresh saved snippets
+                const dialog = document.getElementById('duplicateDialog');
+                if (dialog) {
+                    dialog.close();
+                    fetchSnippets(searchInput.value.trim());
+                }
+            } catch (err) {
+                console.error('Delete failed:', err);
+                showToast('Failed to delete selected snippets.', 'error');
+            }
+        });
+
+        // Wire "Check Duplicates" button click → open modal + trigger check
+        document.getElementById('checkDuplicatesBtn')?.addEventListener('click', () => openDuplicateDialog());
+
+        // Wire close button (X) in modal header to dismiss dialog
+        document.getElementById('closeDuplicateBtn')?.addEventListener('click', () => {
+            const dialog = document.getElementById('duplicateDialog');
+            if (dialog) dialog.close();
+            
+            // Refresh saved snippets list after closing duplicate check
+            fetchSnippets(searchInput.value.trim());
+        });
+
+        // Also refresh when clicking outside dialog or pressing Escape
+        document.getElementById('duplicateDialog')?.addEventListener('click', (e) => {
+            const dialog = e.target;
+            if (dialog.tagName === 'DIALOG' && !dialog.contains(e.target)) {
+                fetchSnippets(searchInput.value.trim());
+            }
+        });
 
         // -----------------------------------------------------------------------
         // Edit snippet – load data into form for editing
@@ -1642,6 +2151,15 @@
                 searchInput.select();
             }
         });
+
+        // -----------------------------------------------------------------------
+        // Multi-select toolbar button wiring
+        // -----------------------------------------------------------------------
+        document.getElementById('enterSelectBtn').addEventListener('click', toggleSelectMode);
+        document.getElementById('selectAllBtn').addEventListener('click', selectAll);
+        document.getElementById('deselectAllBtn').addEventListener('click', deselectAll);
+        document.getElementById('cancelSelectBtn').addEventListener('click', exitSelectMode);
+        document.getElementById('deleteSelectedBtn').addEventListener('click', batchDeleteSelectedSnippets);
 
         // -----------------------------------------------------------------------
         // Initialize – load accounts first (needed for snippet filtering), then snippets

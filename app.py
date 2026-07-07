@@ -204,6 +204,37 @@ def _call_lmstudio(prompt, system_prompt=None, max_tokens_override: int | None =
         raise RuntimeError(f"Review service unavailable: {exc}") from exc
 
 
+def _extract_json_from_response(text: str) -> str:
+    """Extract valid JSON from a response that might contain conversational text."""
+    import re
+    
+    text = text.strip()
+    
+    # Try direct parse first
+    try:
+        json.loads(text)
+        return text
+    except json.JSONDecodeError:
+        pass
+    
+    # Look for JSON-like structures in the response
+    json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+    matches = re.findall(json_pattern, text)
+    
+    if matches:
+        # Try each match to find valid JSON
+        for match in matches:
+            try:
+                json.loads(match)
+                return match
+            except json.JSONDecodeError:
+                continue
+    
+    # If all else fails, return original (will raise error downstream)
+    app.logger.warning("Could not extract JSON from response: %r", text[:200])
+    return text
+
+
 # ---------------------------------------------------------------------------
 # Routes – Extract / Review / Enhance (AI-powered via LMStudio)
 # ---------------------------------------------------------------------------
@@ -393,6 +424,122 @@ def list_snippets():
     return jsonify([s.to_dict() for s in snippets])
 
 
+# ---------------------------------------------------------------------------
+# Check for duplicates (AI-powered semantic dedup)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/snippets/check-duplicates", methods=["POST"])
+def check_duplicates():
+    """Return groups of likely duplicate snippets using AI analysis."""
+    q = request.args.get("q") or (request.json or {}).get("q", "")
+    account_id = request.args.get("account_id") or (request.json or {}).get("account_id", "")
+
+    base_q = Snippet.query
+    if account_id:
+        try:
+            base_q = base_q.filter(Snippet.account_id == int(account_id))
+        except ValueError:
+            pass  # ignore malformed account_id filter
+
+    snippets = base_q.order_by(Snippet.timestamp.desc()).all()
+
+    if not snippets:
+        return jsonify({"groups": [], "total_checked": 0})
+
+    # Build prompt — truncate long bodies for token budget (~400 chars)
+    entries = []
+    for s in snippets:
+        body_short = (s.body or "")[:400]
+        title = s.title or "Untitled"
+        entries.append(f"- Snippet {s.id} ({title}): {body_short}")
+
+    prompt = f"""You are a duplicate detection expert. Analyze these saved snippets and identify TRUE semantic duplicates.
+
+**Saved Snippets to analyze:**
+{chr(10).join(entries)}
+
+---
+
+**What counts as a DUPLICATE:**
+Two snippets are duplicates if they describe the SAME core situation, problem, or instruction — even if using completely different words.
+
+Look for:
+- Same event described differently ("delayed launch due to bugs" = "push back release because of technical blockers")
+- Same issue stated with synonyms ("software crashes" = "application goes down")  
+- Same procedure rephrased ("reset your password" = "change your login credentials")
+
+**Examples:**
+✓ DUPLICATE: "We need to delay the launch due to unexpected bugs" AND "The release is postponed because we hit unforeseen technical issues during integration"
+  → Both mean: project delayed because of development problems
+  
+✓ DUPLICATE: "Update password every 30 days per policy" AND "Change login credentials monthly as required"  
+  → Same instruction, different wording
+
+✗ NOT duplicate: Different topics entirely
+✗ NOT duplicate: Same topic but different details ("fix Python bug on Windows" vs "fix Python bug on Mac")
+
+**Your task:**
+Compare ALL snippets above. Group together only those that are TRUE semantic duplicates (same meaning/intent). Return valid JSON:
+
+{{"groups": [
+  {{
+    "reason": "Why these are duplicates (1 line, e.g., 'Both describe project delay due to unforeseen issues')",
+    "snippet_ids": [ID1, ID2, ...]
+  }}
+]}}
+
+Rules:
+- Only include groups with 2+ snippets
+- Be thorough — don't miss obvious semantic duplicates
+- Be strict — only group if they convey essentially the same information
+- Omit unique snippets that have no duplicates"""
+
+    # Remove f-string formatting artifacts and ensure clean JSON template
+    prompt = prompt.replace("{{", "{").replace("}}", "}")
+
+    try:
+        response = _call_lmstudio(prompt, max_tokens_override=4096)
+    except RuntimeError as exc:
+        app.logger.error("check-duplicates AI failed: %s", exc)
+        return jsonify({"error": str(exc)}), 502
+
+    # Try to extract valid JSON from response (handle conversational wrapping)
+    cleaned_response = _extract_json_from_response(response)
+    
+    try:
+        data = json.loads(cleaned_response)
+    except json.JSONDecodeError as exc:
+        app.logger.warning("LMStudio returned invalid JSON: %r", cleaned_response[:300])
+        raise RuntimeError(f"AI returned invalid JSON: {exc}") from exc
+
+    groups = []
+    seen_ids = set()
+    for g in data.get("groups", []):
+        ids = sorted([int(x) for x in g.get("snippet_ids", [])], reverse=True)  # newest first
+        if any(i in seen_ids for i in ids):
+            continue  # skip overlapping groups
+        snippets_in_group = [s for s in snippets if s.id in ids]
+        groups.append({
+            "reason": g.get("reason", ""),
+            "snippets": [{
+                "id": s.id,
+                "title": (s.title or "Untitled"),
+                "body": (s.body or "")[:200],
+                "account_name": getattr(s.account, "name", "Unknown") if s.account else "Unknown",
+                "category": s.category,
+                "created_at": s.timestamp.isoformat() if s.timestamp else "",
+            } for s in snippets_in_group],
+        })
+        seen_ids.update(ids)
+
+    return jsonify({
+        "groups": groups,
+        "total_checked": len(snippets),
+        "unique_count": len(snippets) - sum(len(g["snippets"]) for g in groups),
+    })
+
+
+
 @app.route("/api/snippets", methods=["POST"])
 def create_snippet():
     """Create a new snippet from form data. `account_id` is required."""
@@ -450,6 +597,42 @@ def delete_snippet(snippet_id):
         db.session.rollback()
         app.logger.error("Failed to delete snippet %d: %s", snippet_id, exc)
         return jsonify({"error": "Internal server error."}), 500
+
+
+@app.route("/api/snippets/delete-batch", methods=["POST"])
+def delete_snippets_batch():
+    """Delete multiple snippets by IDs in a single transaction."""
+    data = request.get_json(silent=True) or {}
+    ids = data.get("ids")
+
+    if not isinstance(ids, list) or len(ids) == 0:
+        return jsonify({"error": "No snippet IDs provided."}), 400
+
+    deleted_count = 0
+    errors = []
+    for sid in ids:
+        try:
+            snippet = db.session.get(Snippet, int(sid))
+            if snippet:
+                db.session.delete(snippet)
+                deleted_count += 1
+            else:
+                errors.append(f"Snippet {sid} not found.")
+        except Exception as exc:
+            app.logger.error("Failed to delete snippet %d during batch: %s", sid, exc)
+            errors.append(f"Snippet {sid}: {str(exc)}")
+
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.error("Batch commit failed: %s", exc)
+        return jsonify({"error": "Internal server error."}), 500
+
+    result = {"deleted": deleted_count, "not_found": len(errors)}
+    if errors:
+        result["errors"] = errors
+    return jsonify(result)
 
 
 @app.route("/api/snippets/<int:snippet_id>", methods=["PUT"])
@@ -680,12 +863,11 @@ def export_markdown():
 
             for snippet in cat_snippets:
                 md_lines.append(f"### {snippet.title}")
-                md_lines.append("")
+                md_lines.append(f"**Snippet ID:** #{snippet.id}")
 
                 if snippet.tags:
                     tags = ", ".join(t.strip() for t in snippet.tags.split(",") if t.strip())
                     md_lines.append(f"**Tags:** {tags}")
-                    md_lines.append("")
 
                 ts_str = (
                     snippet.timestamp.strftime("%Y-%m-%d %H:%M UTC")
@@ -693,11 +875,7 @@ def export_markdown():
                     else "N/A"
                 )
                 md_lines.append(f"*Date:* {ts_str}")
-                md_lines.append("")
-                md_lines.append("```text")
                 md_lines.append(snippet.body)
-                md_lines.append("```")
-                md_lines.append("")
 
     content = "\n".join(md_lines)
     safe_name = account.name.replace(" ", "_").replace("/", "_")
