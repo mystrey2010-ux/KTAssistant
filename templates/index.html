@@ -171,6 +171,9 @@
                         <button data-tab="saved" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300 whitespace-nowrap">
                             Saved Snippets
                         </button>
+                        <button data-tab="accounts" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300 whitespace-nowrap">
+                            Accounts & Snippets
+                        </button>
                         <button data-tab="analysis" class="tab-btn hidden px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300 whitespace-nowrap">
                             Content Analysis <span class="analysis-count hidden ml-1 px-1.5 py-0.5 text-xs bg-red-500/20 text-red-400 rounded-full">0</span>
                         </button>
@@ -420,6 +423,32 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- Tab 5: Accounts & Snippets -->
+                <section id="tab-accounts" class="tab-content hidden">
+                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                        Accounts & Snippets
+                    </h2>
+
+                    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 mb-6">
+                        <label for="accountsTabAccountSelect" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Select Account</label>
+                        <select id="accountsTabAccountSelect" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">Choose an account...</option>
+                        </select>
+                    </div>
+
+                    <div id="accountInfo" class="hidden mb-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <h3 id="accountName" class="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1"></h3>
+                        <p id="snippetCountLabel" class="text-sm text-slate-600 dark:text-slate-400"></p>
+                    </div>
+
+                    <ul id="snippetsListAccounts" class="list-disc pl-6 space-y-2 text-sm hidden"></ul>
+
+                    <div id="noSnippets" class="hidden p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 text-center text-slate-600 dark:text-slate-400">
+                        No snippets found for this account.
+                    </div>
+                </section>
             </div>
         </div>
     </main>
@@ -552,6 +581,7 @@
         const tabSaved = $('#tab-saved');
         const tabAnalysis = $('#tab-analysis');
         const tabEnhancement = $('#tab-enhancement');
+        const tabAccounts = $('#tab-accounts');
 
         // Tab buttons
         const tabBtns = document.querySelectorAll('.tab-btn');
@@ -615,6 +645,7 @@
             tabSaved.classList.toggle('hidden', tabName !== 'saved');
             tabAnalysis.classList.toggle('hidden', tabName !== 'analysis');
             tabEnhancement.classList.toggle('hidden', tabName !== 'enhancement');
+            tabAccounts.classList.toggle('hidden', tabName !== 'accounts');
 
             // Close account dropdown when switching tabs
             if (accountDropdownMenu) {
@@ -851,6 +882,9 @@
                 accountHint.style.display = hasAccounts ? 'none' : 'block';
                 reportHintEl.style.display = hasAccounts ? 'none' : 'block';
 
+                // Populate the accounts & snippets tab dropdown
+                populateAccountsTabDropdown();
+
                 // Update tab visibility based on accounts
                 updateTabVisibility();
 
@@ -858,6 +892,100 @@
                 console.error('Failed to load accounts:', err);
                 showToast('Failed to load accounts.', 'error');
             }
+        }
+
+        // -----------------------------------------------------------------------
+        // Accounts & Snippets tab – populate dropdown & render snippet list
+        // -----------------------------------------------------------------------
+        const accountsTabSelector = $('#accountsTabAccountSelect');
+        const accountInfoEl = $('#accountInfo');
+        const accountNameEl = $('#accountName');
+        const snippetCountLabelEl = $('#snippetCountLabel');
+        const snippetsListAccountsEl = $('#snippetsListAccounts');
+        const noSnippetsEl = $('#noSnippets');
+
+        async function loadAccountSnippets(accountId) {
+            if (!accountId) {
+                accountInfoEl.classList.add('hidden');
+                snippetsListAccountsEl.classList.add('hidden');
+                snippetsListAccountsEl.innerHTML = '';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/account/${accountId}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                accountNameEl.textContent = data.account_name || 'Unknown';
+                snippetCountLabelEl.textContent = `${data.snippet_count} snippet(s)`;
+                accountInfoEl.classList.remove('hidden');
+
+                snippetsListAccountsEl.innerHTML = '';
+                noSnippetsEl.classList.add('hidden');
+
+                if (!data.snippets || data.snippets.length === 0) {
+                    noSnippetsEl.classList.remove('hidden');
+                    return;
+                }
+
+                for (const s of data.snippets) {
+                    const li = document.createElement('li');
+                    li.className = 'text-slate-700 dark:text-slate-300';
+                    
+                    // Title in bold, followed by full body text on next line
+                    const titleSpan = document.createElement('strong');
+                    titleSpan.textContent = escapeHtml(s.title);
+                    li.appendChild(titleSpan);
+                    li.appendChild(document.createElement('br'));
+                    
+                    if (s.body) {
+                        const previewEl = document.createElement('span');
+                        previewEl.className = 'text-slate-600 dark:text-slate-400 mt-1 block whitespace-pre-wrap';
+                        previewEl.textContent = escapeHtml(s.body);
+                        li.appendChild(previewEl);
+                    }
+
+                    snippetsListAccountsEl.appendChild(li);
+                }
+
+                snippetsListAccountsEl.classList.remove('hidden');
+            } catch (err) {
+                console.error('Failed to load account snippets:', err);
+                showToast(`Failed to load snippets: ${err.message}`, 'error');
+                noSnippetsEl.textContent = 'Failed to load snippets.';
+                noSnippetsEl.classList.remove('hidden');
+            }
+        }
+
+        // Populate the accounts tab dropdown when accounts are loaded, and wire change handler
+        function populateAccountsTabDropdown() {
+            if (!accountsTabSelector) return;
+            accountsTabSelector.innerHTML = '';
+            const placeholderOpt = document.createElement('option');
+            placeholderOpt.value = '';
+            placeholderOpt.textContent = 'Choose an account...';
+            accountsTabSelector.appendChild(placeholderOpt);
+
+            if (accounts.length === 0) {
+                accountsTabSelector.disabled = true;
+                return;
+            }
+
+            accounts.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = String(a.id);
+                opt.textContent = a.name;
+                accountsTabSelector.appendChild(opt);
+            });
+
+            accountsTabSelector.disabled = false;
+        }
+
+        if (accountsTabSelector) {
+            accountsTabSelector.addEventListener('change', () => {
+                loadAccountSnippets(accountsTabSelector.value);
+            });
         }
 
         // Account selector change → re-fetch snippets for that account and enable/disable buttons

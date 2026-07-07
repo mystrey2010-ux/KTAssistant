@@ -526,12 +526,20 @@ Rules:
 
     # Try to extract valid JSON from response (handle conversational wrapping)
     cleaned_response = _extract_json_from_response(response)
-    
+
+    if not cleaned_response or not cleaned_response.strip():
+        app.logger.warning("LMStudio returned empty response for check-duplicates")
+        return jsonify({"groups": [], "total_checked": len(snippets)})
+
     try:
         data = json.loads(cleaned_response)
     except json.JSONDecodeError as exc:
         app.logger.warning("LMStudio returned invalid JSON: %r", cleaned_response[:300])
-        raise RuntimeError(f"AI returned invalid JSON: {exc}") from exc
+        return jsonify({"groups": [], "total_checked": len(snippets), "unique_count": len(snippets)})
+
+    if not isinstance(data, dict) or "groups" not in data:
+        app.logger.warning("LMStudio response missing 'groups' key: %r", str(data)[:200])
+        return jsonify({"groups": [], "total_checked": len(snippets), "unique_count": len(snippets)})
 
     groups = []
     seen_ids = set()
@@ -702,17 +710,33 @@ def update_snippet(snippet_id):
         app.logger.error("Failed to update snippet %d: %s", snippet_id, exc)
         return jsonify({"error": "Internal server error."}), 500
 
-
 # ---------------------------------------------------------------------------
-# Routes – Account CRUD
+# API Routes – Account CRUD
 # ---------------------------------------------------------------------------
-
 
 @app.route("/api/accounts", methods=["GET"])
 def list_accounts():
     """Return all accounts as a JSON array."""
     accounts = Account.query.order_by(Account.name).all()
     return jsonify([a.to_dict() for a in accounts])
+
+
+@app.route("/account/<int:account_id>")
+def account_snippets(account_id):
+    """Show a simple bullet list of all snippets for an account."""
+    account = db.session.get(Account, account_id)
+    if not account:
+        return jsonify({"error": "Account not found."}), 404
+
+    snippets = Snippet.query.filter_by(account_id=account_id).order_by(Snippet.timestamp.desc()).all()
+    snippet_data = [{"title": s.title or "Untitled", "body": (s.body or "")} for s in snippets]
+    
+    return jsonify({
+        "account_name": account.name,
+        "account_description": account.description or "",
+        "snippet_count": len(snippets),
+        "snippets": snippet_data,
+    })
 
 
 @app.route("/api/accounts", methods=["POST"])
@@ -905,6 +929,7 @@ def export_markdown():
                 )
                 md_lines.append(f"*Date:* {ts_str}")
                 md_lines.append(snippet.body)
+                md_lines.append("")  # blank line after each snippet for visual separation
 
     content = "\n".join(md_lines)
     safe_name = account.name.replace(" ", "_").replace("/", "_")
