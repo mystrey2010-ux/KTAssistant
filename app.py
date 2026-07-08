@@ -37,6 +37,33 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
 # ---------------------------------------------------------------------------
+# Approved Categories (single source of truth)
+# Ordered for documentation-style display. Sync with frontend CATEGORIES constant.
+# ---------------------------------------------------------------------------
+
+CATEGORIES: list[str] = [
+    "1. General",
+    "2. Configuration",
+    "3. Procedure",
+    "4. Known Issue",
+    "5. Decision",
+    "6. Reference",
+    "7. Action Item",
+]
+
+
+def _normalise_category(category: str | None) -> str:
+    """Return the canonical category string if it matches an approved value, else fallback to '1. General'."""
+    if not category:
+        return CATEGORIES[0]
+    cat = category.strip()
+    for allowed in CATEGORIES:
+        if allowed.lower() == cat.lower():
+            return allowed
+    return CATEGORIES[0]
+
+
+# ---------------------------------------------------------------------------
 # Database Model
 # ---------------------------------------------------------------------------
 
@@ -256,6 +283,12 @@ def _extract_json_from_response(text: str) -> str:
     return text
 
 
+def _unescape_html(text: str) -> str:
+    """Convert common HTML entities back to their literal characters."""
+    import html as _html_mod
+    return _html_mod.unescape(text)
+
+
 # ---------------------------------------------------------------------------
 # Routes – Extract / Review / Enhance (AI-powered via LMStudio)
 # ---------------------------------------------------------------------------
@@ -415,9 +448,18 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/api/categories")
+def list_categories():
+    """Return the approved category list (ordered, single source of truth)."""
+    return jsonify(CATEGORIES)
+
+
 @app.route("/api/snippets", methods=["GET"])
 def list_snippets():
-    """Return all snippets as JSON, optionally filtered by ?q= and/or ?account_id=."""
+    """Return all snippets as JSON, optionally filtered by ?q= and/or ?account_id=.
+
+    Snippets are sorted by category (ascending, respects numbered prefix) then newest-first.
+    """
     query = request.args.get("q", "").strip().lower()
     account_id = request.args.get("account_id", "").strip()
 
@@ -428,7 +470,7 @@ def list_snippets():
         except ValueError:
             pass  # ignore malformed account_id filter
     if not query:
-        snippets = base_q.order_by(Snippet.timestamp.desc()).all()
+        snippets = base_q.order_by(Snippet.category.asc(), Snippet.timestamp.desc()).all()
     else:
         snippets = (
             base_q.filter(
@@ -439,7 +481,7 @@ def list_snippets():
                     Snippet.tags.ilike(f"%{query}%"),
                 )
             )
-            .order_by(Snippet.timestamp.desc())
+            .order_by(Snippet.category.asc(), Snippet.timestamp.desc())
             .all()
         )
     return jsonify([s.to_dict() for s in snippets])
@@ -574,7 +616,7 @@ def create_snippet():
     """Create a new snippet from form data. `account_id` is required."""
     try:
         title = request.form.get("title", "").strip()
-        category = request.form.get("category", "General").strip()
+        category = _normalise_category(request.form.get("category"))
         body = request.form.get("body", "").strip()
         tags = request.form.get("tags", "").strip()
         account_id_str = request.form.get("account_id", "").strip()
@@ -674,7 +716,7 @@ def update_snippet(snippet_id):
     try:
         data = request.get_json(silent=True) or {}
         title = data.get("title", "").strip()
-        category = data.get("category", "General").strip()
+        category = _normalise_category(data.get("category"))
         body = data.get("body", "").strip()
         tags = data.get("tags", "").strip()
         account_id_str = data.get("account_id", "").strip()
@@ -728,8 +770,15 @@ def account_snippets(account_id):
     if not account:
         return jsonify({"error": "Account not found."}), 404
 
-    snippets = Snippet.query.filter_by(account_id=account_id).order_by(Snippet.timestamp.desc()).all()
-    snippet_data = [{"title": s.title or "Untitled", "body": (s.body or "")} for s in snippets]
+    snippets = Snippet.query.filter_by(account_id=account_id).order_by(Snippet.category.asc(), Snippet.timestamp.desc()).all()
+    snippet_data = [
+        {
+            "title": _unescape_html(s.title) if s.title else "Untitled",
+            "body": _unescape_html(s.body or ""),
+            "category": s.category,
+        }
+        for s in snippets
+    ]
     
     return jsonify({
         "account_name": account.name,
@@ -966,7 +1015,7 @@ def import_snippets():
     imported_titles = set()
     for item in imported:
         title = str(item.get("title", "")).strip()
-        category = str(item.get("category", "General")).strip()
+        category = _normalise_category(str(item.get("category")))
         if not title or not item.get("body"):
             continue
         key = (title.lower(), category.lower())
@@ -1300,7 +1349,7 @@ def extract_snippets():
         snippet_data = {
             "title": str(item.get("title", "")).strip(),
             "body": str(item.get("body", "")).strip(),
-            "category": str(item.get("category", "General")).strip() or "General",
+            "category": _normalise_category(str(item.get("category"))),
             "tags": str(item.get("tags", "")).strip(),
         }
         # Attach source metadata using the chunk index that produced this snippet.
@@ -1366,7 +1415,7 @@ def save_all_extracted():
 
     for item in snippets_in:
         title = str(item.get("title", "")).strip()
-        category = str(item.get("category", "General")).strip() or "General"
+        category = _normalise_category(str(item.get("category")))
         body = str(item.get("body", "")).strip()
         tags = str(item.get("tags", "")).strip()
 
@@ -1405,6 +1454,73 @@ def save_all_extracted():
         "saved": saved_count,
         "skipped_duplicates": skipped_count,
     })
+
+
+# ---------------------------------------------------------------------------
+# Export – Word Document (.docx) generation
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/snippets/export/<int:account_id>", methods=["GET"])
+def export_snippets_as_docx(account_id):
+    """Export all snippets for an account as a .docx Word document, grouped by category."""
+    account = db.session.get(Account, account_id)
+    if not account:
+        return jsonify({"error": "Account not found."}), 404
+
+    snippets = Snippet.query.filter_by(account_id=account_id).order_by(Snippet.category.asc(), Snippet.timestamp.desc()).all()
+    if not snippets:
+        return jsonify({"error": "No snippets to export."}), 404
+
+    from docx import Document as DocxDocument
+    from docx.shared import Pt, Inches
+    from io import BytesIO
+    from werkzeug.datastructures import Headers
+    from flask import make_response
+
+    doc = DocxDocument()
+    doc.add_heading(str(account.name), level=0)
+
+    # Group by category preserving order
+    grouped = {}
+    categories_order = []
+    for s in snippets:
+        cat = s.category or "General"
+        if cat not in grouped:
+            grouped[cat] = []
+            categories_order.append(cat)
+        grouped[cat].append(s)
+
+    prev_category = ''
+    for category, items in grouped.items():
+        # Category heading (level 1) — only add separator between groups
+        if category != prev_category and prev_category != '':
+            doc.add_paragraph("_" * 80)
+        doc.add_heading(category, level=1)
+
+        for s in items:
+            title_text = _unescape_html(s.title or "Untitled")
+            body_text = _unescape_html(s.body or "") if s.body else ""
+
+            p_bullet = doc.add_paragraph(style="List Bullet")
+            r_title = p_bullet.add_run(f"{title_text}: ")
+            r_title.bold = True
+            r_title.font.size = Pt(11)
+            if body_text:
+                r_body = p_bullet.add_run(body_text)
+                r_body.font.size = Pt(11)
+
+        prev_category = category
+
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+
+    response = make_response(buffer.read())
+    filename = f"snippets_{account.name.replace(' ', '_')}.docx"
+    response.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 # ---------------------------------------------------------------------------

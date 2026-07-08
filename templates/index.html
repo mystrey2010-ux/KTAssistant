@@ -172,7 +172,7 @@
                             Saved Snippets
                         </button>
                         <button data-tab="accounts" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300 whitespace-nowrap">
-                            Accounts & Snippets
+                            Snippet List
                         </button>
                         <button data-tab="analysis" class="tab-btn hidden px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300 whitespace-nowrap">
                             Content Analysis <span class="analysis-count hidden ml-1 px-1.5 py-0.5 text-xs bg-red-500/20 text-red-400 rounded-full">0</span>
@@ -262,8 +262,10 @@
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label for="categoryInput" class="block text-xs font-medium text-slate-400 dark:text-slate-400 mb-1">Category</label>
-                            <input type="text" id="categoryInput" name="category" placeholder="General" value="General"
-                                class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-slate-400 dark:placeholder-slate-500 transition-colors" />
+                            <select id="categoryInput" name="category" disabled
+                                class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors">
+                                <option value="1. General" selected>1. General</option>
+                            </select>
                             </div>
                             <div>
                                 <label for="tagsInput" class="block text-xs font-medium text-slate-400 dark:text-slate-400 mb-1">Tags</label>
@@ -426,9 +428,15 @@
 
                 <!-- Tab 5: Accounts & Snippets -->
                 <section id="tab-accounts" class="tab-content hidden">
-                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                        Accounts & Snippets
+                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center justify-between">
+                        <span class="flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                            Snippet List
+                        </span>
+                        <button id="exportWordDocBtn" type="button" class="hidden inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg shadow transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            Export Word Doc
+                        </button>
                     </h2>
 
                     <div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 mb-6">
@@ -502,7 +510,43 @@
             applyTheme(themeToggle.checked);
         });
 
-        const form = $('#snippetForm');
+        // -----------------------------------------------------------------------
+        // Approved categories (mirrors backend CATEGORIES constant)
+        // Populated dynamically from /api/categories; this default is a fallback.
+        // -----------------------------------------------------------------------
+        const CATEGORIES = [
+            '1. General',
+            '2. Configuration',
+            '3. Procedure',
+            '4. Known Issue',
+            '5. Decision',
+            '6. Reference',
+            '7. Action Item',
+        ];
+
+        async function loadCategories() {
+            try {
+                const res = await fetch('/api/categories');
+                if (!res.ok) return;  // fall back to CATEGORIES default
+                const data = await res.json();
+                if (Array.isArray(data)) populateCategoryDropdown(data);
+            } catch { /* ignore – use built-in list */ }
+        }
+
+        function populateCategoryDropdown(categories) {
+            categoryInput.innerHTML = '';
+            categories.forEach((cat, idx) => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                if (idx === 0) opt.selected = true;
+                categoryInput.appendChild(opt);
+            });
+        }
+
+        // -----------------------------------------------------------------------
+        // DOM references
+        // -----------------------------------------------------------------------
         const titleInput = $('#titleInput');
         const categoryInput = $('#categoryInput');
         const bodyInput = $('#bodyInput');
@@ -516,8 +560,7 @@
         cancelEditBtn.addEventListener('click', () => {
             if (editingSnippetId) {
                 form.reset();
-                categoryInput.value = 'General';
-
+                categoryInput.value = '1. General';
                 // Clear review results and hide Analysis/Enhancement tabs
                 reviewResults = {
                     issues: [],
@@ -553,6 +596,8 @@
 
         // Current extracted snippets (kept in memory so individual/cancel ops work without re-fetching)
         let currentExtractedSnippets = [];
+
+        const form = $('#snippetForm');
 
         // Account DOM refs
         const accountSelector = $('#accountSelector');
@@ -903,12 +948,14 @@
         const snippetCountLabelEl = $('#snippetCountLabel');
         const snippetsListAccountsEl = $('#snippetsListAccounts');
         const noSnippetsEl = $('#noSnippets');
+        const exportWordDocBtn = $('#exportWordDocBtn');
 
         async function loadAccountSnippets(accountId) {
             if (!accountId) {
                 accountInfoEl.classList.add('hidden');
                 snippetsListAccountsEl.classList.add('hidden');
                 snippetsListAccountsEl.innerHTML = '';
+                if (exportWordDocBtn) exportWordDocBtn.classList.add('hidden');
                 return;
             }
 
@@ -920,6 +967,7 @@
                 accountNameEl.textContent = data.account_name || 'Unknown';
                 snippetCountLabelEl.textContent = `${data.snippet_count} snippet(s)`;
                 accountInfoEl.classList.remove('hidden');
+                if (exportWordDocBtn) exportWordDocBtn.classList.remove('hidden');
 
                 snippetsListAccountsEl.innerHTML = '';
                 noSnippetsEl.classList.add('hidden');
@@ -929,24 +977,51 @@
                     return;
                 }
 
+                // Group by category (backend returns ordered results: cat ASC, time DESC)
+                const grouped = new Map();
                 for (const s of data.snippets) {
-                    const li = document.createElement('li');
-                    li.className = 'text-slate-700 dark:text-slate-300';
-                    
-                    // Title in bold, followed by full body text on next line
-                    const titleSpan = document.createElement('strong');
-                    titleSpan.textContent = escapeHtml(s.title);
-                    li.appendChild(titleSpan);
-                    li.appendChild(document.createElement('br'));
-                    
-                    if (s.body) {
-                        const previewEl = document.createElement('span');
-                        previewEl.className = 'text-slate-600 dark:text-slate-400 mt-1 block whitespace-pre-wrap';
-                        previewEl.textContent = escapeHtml(s.body);
-                        li.appendChild(previewEl);
+                    const key = s.category || '1. General';
+                    if (!grouped.has(key)) grouped.set(key, []);
+                    grouped.get(key).push(s);
+                }
+
+                let prevCategory = '';
+                for (const [category, items] of grouped) {
+                    // Insert category heading when transitioning to a new group
+                    if (category !== prevCategory && prevCategory !== '') {
+                        const headingSep = document.createElement('div');
+                        headingSep.className = 'mt-6 mb-2 border-t border-slate-200 dark:border-slate-700 pt-3';
+                        snippetsListAccountsEl.appendChild(headingSep);
                     }
 
-                    snippetsListAccountsEl.appendChild(li);
+                    // Render the category heading for the first item in this group
+                    if (category !== prevCategory) {
+                        const catHeading = document.createElement('h3');
+                        catHeading.className = 'text-2xl font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300 mb-3 mt-6';
+                        catHeading.textContent = category;
+                        snippetsListAccountsEl.appendChild(catHeading);
+                    }
+
+                    for (const s of items) {
+                        const li = document.createElement('li');
+                        li.className = 'text-slate-700 dark:text-slate-300 text-sm';
+                        
+                        // Title in bold, followed by full body text on next line
+                        const titleSpan = document.createElement('strong');
+                        titleSpan.textContent = unescapeHtml(escapeHtml(s.title));
+                        li.appendChild(titleSpan);
+                        li.appendChild(document.createElement('br'));
+                        
+                        if (s.body) {
+                            const previewEl = document.createElement('span');
+                            previewEl.className = 'text-slate-600 dark:text-slate-400 mt-1 block whitespace-pre-wrap';
+                            previewEl.textContent = unescapeHtml(escapeHtml(s.body));
+                            li.appendChild(previewEl);
+                        }
+
+                        snippetsListAccountsEl.appendChild(li);
+                    }
+                    prevCategory = category;
                 }
 
                 snippetsListAccountsEl.classList.remove('hidden');
@@ -956,6 +1031,39 @@
                 noSnippetsEl.textContent = 'Failed to load snippets.';
                 noSnippetsEl.classList.remove('hidden');
             }
+        }
+
+        // Export Word Doc – download button in the header row
+        if (exportWordDocBtn) {
+            exportWordDocBtn.addEventListener('click', async () => {
+                const accountId = accountsTabSelector.value;
+                if (!accountId) return;
+
+                exportWordDocBtn.disabled = true;
+                const originalHTML = exportWordDocBtn.innerHTML;
+                exportWordDocBtn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Exporting...';
+
+                try {
+                    const res = await fetch(`/api/snippets/export/${accountId}`);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = (res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1]) || 'snippets.docx';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    showToast('Word document exported.', 'success');
+                } catch (err) {
+                    console.error('Export failed:', err);
+                    showToast(`Failed to export: ${err.message}`, 'error');
+                } finally {
+                    exportWordDocBtn.innerHTML = originalHTML;
+                    exportWordDocBtn.disabled = false;
+                }
+            });
         }
 
         // Populate the accounts tab dropdown when accounts are loaded, and wire change handler
@@ -987,6 +1095,7 @@
                 loadAccountSnippets(accountsTabSelector.value);
             });
         }
+
 
         // Account selector change → re-fetch snippets for that account and enable/disable buttons
         accountSelector.addEventListener('change', () => {
@@ -1827,7 +1936,7 @@
                 
                 // Reset form and edit state
                 form.reset();
-                categoryInput.value = 'General';
+                categoryInput.value = '1. General';
                 editingSnippetId = null;
                 saveBtn.textContent = 'Save Snippet';
                 cancelEditBtn.classList.add('hidden');
@@ -2262,6 +2371,13 @@
             return div.innerHTML;
         }
 
+        function unescapeHtml(str) {
+            if (!str) return '';
+            const textarea = document.createElement('textarea');
+            textarea.innerHTML = str;
+            return textarea.value;
+        }
+
         function formatDate(isoString) {
             if (!isoString) return '';
             try {
@@ -2308,7 +2424,8 @@
         // -----------------------------------------------------------------------
         // Initialize – load accounts first (needed for snippet filtering), then snippets
         // -----------------------------------------------------------------------
-        loadAccounts().then(() => fetchSnippets());
+        // Initialize – load accounts and categories first (needed for snippet filtering & dropdown), then snippets
+        Promise.all([loadCategories(), loadAccounts()]).then(() => fetchSnippets());
     })();
     </script>
 </body>
