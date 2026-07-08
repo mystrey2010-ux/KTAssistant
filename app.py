@@ -52,14 +52,76 @@ CATEGORIES: list[str] = [
 ]
 
 
+def _strip_category_prefix(text: str) -> str:
+    """Strip leading 'N.' / 'N. ' prefix and normalize whitespace in a category string."""
+    text = re.sub(r'^\s*\d+\.\s*', '', text.strip())
+    return " ".join(text.split())  # collapse multiple spaces
+
+
 def _normalise_category(category: str | None) -> str:
-    """Return the canonical category string if it matches an approved value, else fallback to '1. General'."""
+    """Return the canonical category string for an AI- or user-supplied value.
+
+    Handles three cases in order of preference:
+      1. Exact (case-insensitive) match against approved categories, with or
+         without the leading number prefix ('3. Procedure' → '3. Procedure').
+      2. Name-only match — AI returns 'Configuration' but we have '2. Configuration'.
+      3. Keyword fallback — AI says 'Known issue/Workaround', 'config settings', etc.
+
+    Falls back to '1. General' if nothing matches.
+    """
     if not category:
         return CATEGORIES[0]
-    cat = category.strip()
+
+    cat_clean = _strip_category_prefix(category)
+
+    # 1. Exact match against full allowed string (handles already-prefixed input)
     for allowed in CATEGORIES:
-        if allowed.lower() == cat.lower():
+        if allowed.lower() == cat_clean.lower():
             return allowed
+
+    # 2. Name-only match — strip the prefix from allowed categories and compare
+    for allowed in CATEGORIES:
+        allowed_name = _strip_category_prefix(allowed).lower()
+        if allowed_name == cat_clean.lower():
+            return allowed
+
+    # 3. Keyword fallback — AI may use slightly off wording ("config settings",
+    #    "known issue/workaround", "action item", etc.). Match against a keyword
+    #    set defined per category in priority order (most specific first).
+    cat_lower = cat_clean.lower()
+    KEYWORD_MAP: dict[str, str] = {
+        "known":           "4. Known Issue",
+        "issue/workaround":"4. Known Issue",
+        "workaround":      "4. Known Issue",
+        "bug fix":         "4. Known Issue",
+        "procedure":       "3. Procedure",
+        "step by step":    "3. Procedure",
+        "how-to":          "3. Procedure",
+        "runbook":         "3. Procedure",
+        "configuration settings": "2. Configuration",
+        "network settings":"2. Configuration",
+        "ip address":      "2. Configuration",
+        "service name":    "2. Configuration",
+        "account detail":  "2. Configuration",
+        "credential":      "2. Configuration",
+        "config":          "2. Configuration",
+        "decision":        "5. Decision",
+        "architectural decision": "5. Decision",
+        "reference link":  "6. Reference",
+        "kb article":      "6. Reference",
+        "documentation page":"6. Reference",
+        "screenshot":      "6. Reference",
+        "diagram":         "6. Reference",
+        "action item":     "7. Action Item",
+        "task assigned":   "7. Action Item",
+        "follow-up":       "7. Action Item",
+        "todo":            "7. Action Item",
+    }
+    for pattern, canonical in KEYWORD_MAP.items():
+        if pattern in cat_lower:
+            return canonical
+
+    # 4. Last resort — fallback to General
     return CATEGORIES[0]
 
 
@@ -297,16 +359,37 @@ _EXTRACT_SYSTEM_PROMPT = (
     "You are a senior IT support knowledge transfer editor. Given the text below, "
     "extract only the relevant snippets of information that would be useful for an "
     "IT support engineer to perform a task or know as essential context.\n\n"
+
     "Focus on:\n"
     '  - Actionable procedures and step-by-step instructions\n'
     '  - Known issues, workarounds, and fixes\n'
     '  - Configuration details (IP addresses, service names, account names)\n'
     '  - Important decisions or action items with assigned owners\n'
     '  - Error codes and their resolutions\n\n'
+
     "Ignore:\n"
     '  - General pleasantries, meeting logistics, attendance lists\n'
     '  - Redundant information already captured elsewhere\n'
     '  - Speculation or unconfirmed details\n\n'
+
+    "CLASSIFICATION — each snippet MUST be assigned exactly ONE of these 7 categories. "
+    "Read the full snippet body carefully before choosing. Use EXACTLY this name "
+    "(no number prefix, no extra words):\n\n"
+
+    "- Configuration: IP addresses, service names, account details, network settings, credentials, registry keys, port numbers, file paths, installation configurations.\n"
+    '- Procedure: step-by-step instructions, how-tos, workflows, runbooks, sequences of actions to perform a task.\n'
+    '- Known Issue: documented bugs, recurring errors, workarounds, fixes for known problems, status updates on open defects.\n'
+    '- Decision: recorded choices with rationale (e.g. "we decided to...", "the team agreed that..."), architecture decisions, technology selections.\n'
+    '- Reference: links to KB articles, documentation pages, related resources, screenshots, diagrams, external references.\n'
+    '- Action Item: tasks assigned to a specific person or team, often with deadlines or follow-up owners.\n'
+    '- General: anything else that does not fit the above categories (catch-all).\n\n'
+
+    "Examples:\n"
+    '  Snippet body: "To reset a user password open ADUC and search for the account." → category = "Procedure"\n'
+    '  Snippet body: "Known issue with Exchange CU14 on Server 2022 — requires KB5007232 first." → category = "Known Issue"\n'
+    '  Snippet body: "We decided to use Azure AD Connect for sync going forward." → category = "Decision"\n'
+    '  Snippet body: "IP range 192.168.50.0/24 is reserved for server VLANs." → category = "Configuration"\n\n'
+
     "Respond ONLY with valid JSON — no markdown fences, no explanations outside the JSON.\n\n"
     "Return an array of extracted snippets. Each snippet must have this structure:\n"
     '{\n'
@@ -314,7 +397,7 @@ _EXTRACT_SYSTEM_PROMPT = (
     '    {\n'
     '      "title": "...short descriptive title...",\n'
     '      "body": "...the extracted information, self-contained and clear...",\n'
-    '      "category": "...appropriate category (e.g. Procedure, Known Issue, Configuration)...",\n'
+    '      "category": "...one of the 7 categories above, exact name only (e.g. Procedure)",\n'
     '      "tags": "...comma-separated keywords..."\n'
     '    }\n'
     '  ]\n'
